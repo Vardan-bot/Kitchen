@@ -18,6 +18,7 @@ input,select,textarea{width:100%;padding:11px 13px;border:1px solid var(--line);
 input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 button{border:0;border-radius:12px;padding:10px 14px;background:var(--soft);cursor:pointer}
 button.primary{background:var(--accent);color:#fff;width:100%;padding:14px;font-weight:600;margin-top:18px}
+button.primary-sm{background:var(--accent);color:#fff}
 button.ghost{background:none;color:var(--accent);padding:6px 2px}
 button.danger{background:#f3d9d2;color:#9a3423}
 .hint{font-size:13px;color:var(--muted);margin:6px 2px 10px}
@@ -29,7 +30,7 @@ button.danger{background:#f3d9d2;color:#9a3423}
 .ph{background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:34px}
 .cn{font-family:Georgia,serif;font-size:18px;font-weight:bold}
 .cm{font-size:13px;color:var(--muted);margin-top:2px}
-.fab{position:fixed;right:20px;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);width:60px;height:60px;border-radius:50%;background:var(--sage);color:#fff;font-size:30px;box-shadow:0 6px 16px rgba(60,80,50,.3);padding:0}
+.fab{position:fixed;right:20px;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);width:60px;height:60px;border-radius:50%;background:var(--sage);color:#fff;font-size:30px;box-shadow:0 6px 16px rgba(60,80,50,.3);padding:0}
 .empty{text-align:center;color:var(--muted);padding:40px 10px}
 .hero{width:100%;max-height:300px;object-fit:cover;border-radius:18px;margin:10px 0}
 .sec{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;margin-top:14px}
@@ -43,10 +44,10 @@ button.danger{background:#f3d9d2;color:#9a3423}
 .steps{padding-left:0;list-style:none;counter-reset:s;margin:0}
 .steps li{counter-increment:s;position:relative;padding:4px 0 12px 38px}
 .steps li::before{content:counter(s);position:absolute;left:0;top:2px;width:26px;height:26px;border-radius:50%;background:var(--soft);color:var(--accent);text-align:center;line-height:26px;font-weight:bold}
-.row{display:flex;gap:10px;margin-top:18px}
-.row button{flex:1}
+.row,.btnrow{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.row button,.btnrow button{flex:1}
 label{display:block;margin:12px 0;font-size:14px;color:var(--muted)}
-label input{margin-top:5px;color:var(--ink);font-size:16px}
+label input,label select{margin-top:5px;color:var(--ink);font-size:16px}
 .lbl{font-size:14px;color:var(--muted);margin:16px 0 6px}
 .ir{display:grid;grid-template-columns:2fr 1fr 1.1fr auto;gap:6px;margin-bottom:6px}
 .ir input,.ir select{padding:9px 8px}
@@ -55,44 +56,138 @@ label input{margin-top:5px;color:var(--ink);font-size:16px}
 .x{background:none;color:var(--muted);padding:6px 8px;font-size:20px}
 .addrow{display:flex;gap:8px;margin-bottom:6px}
 .addrow button{white-space:nowrap}
-.backup{position:fixed;left:0;right:0;bottom:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(env(safe-area-inset-bottom,0px) + 10px);font-size:14px;box-shadow:0 -2px 10px rgba(120,80,40,.07)}
-.bl{color:var(--muted)}
-.bb{display:flex;gap:8px}
-.bb button{padding:7px 12px;font-size:13px;background:var(--soft);color:var(--accent);border-radius:999px}
+.tabs{display:flex;gap:8px;margin:14px 0}
+.tabs button{flex:1;background:var(--card);border:1px solid var(--line)}
+.tabs button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.frow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.frow div{display:flex;gap:6px}
+.frow button{padding:7px 10px;font-size:14px}
+.tabbar{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding:6px 0 calc(env(safe-area-inset-bottom,0px) + 6px);z-index:4}
+.tabbar button{flex:1;background:none;color:var(--muted);font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:0}
+.tabbar button span{font-size:20px}
+.tabbar button.on{color:var(--accent);font-weight:600}
 </style>
 </head>
 <body>
-<div id="app"></div>
+<div id="app"><div class="empty">Загрузка…</div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"></script>
 <script>
-const KEY='my-kitchen-v1';
+const SUPABASE_URL='https://kbcblpbwdihqvyqjobzi.supabase.co';
+const SUPABASE_KEY='sb_publishable_8lWggefI_2oDIXcUsfL_UQ_zRbxRxi_';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+const KEY_OLD='my-kitchen-v1';
 const CATS=['Завтраки','Супы','Горячее','Гарниры','Закуски','Выпечка','Десерты','Напитки','Соусы'];
 const DEF_TAGS=['быстро','без мяса'];
 const UNITS=['','г','кг','мл','л','шт','ст.л.','ч.л.','стакан','по вкусу'];
 const EMO={'Завтраки':'🍳','Супы':'🥣','Горячее':'🍲','Гарниры':'🍚','Закуски':'🥗','Выпечка':'🥐','Десерты':'🍰','Напитки':'🥤','Соусы':'🫙'};
 
-let recipes=[];
-try{recipes=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){recipes=[]}
-let st={screen:'list',id:null,q:'',cat:'',tag:'',scale:null,draft:null};
+let me=null,myNick='',recipes=[],friendships=[],profiles=[];
+let st={view:'auth',scope:null,id:null,q:'',cat:'',tag:'',fq:'',scale:null,draft:null,authMode:'login'};
 const $=document.getElementById('app');
 
-function save(){
-  try{localStorage.setItem(KEY,JSON.stringify(recipes))}
-  catch(e){alert('Не удалось сохранить: в памяти браузера мало места. Попробуйте фото меньшего размера или удалите старые блюда.')}
-}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function num(n){return String(Math.round(n*10)/10).replace('.',',')}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
-function allTags(){const s=new Set(DEF_TAGS);recipes.forEach(r=>(r.tags||[]).forEach(t=>s.add(t)));return [...s]}
 function emo(c){return EMO[c]||'🍽'}
+function fail(e){alert((e&&e.message)||'Что-то пошло не так')}
+function nickOf(id){if(me&&id===me.id)return myNick;const p=profiles.find(x=>x.id===id);return p?p.nickname:'…'}
+function owner(){return st.scope||me.id}
+function chip(v,label,cur,kind){return `<button class="chip ${v===cur?'on':''}" data-act="${kind}" data-v="${esc(v)}">${esc(label)}</button>`}
+function toRow(r){return{id:r.id,owner:me.id,name:r.name,category:r.category||'',tags:r.tags||[],photo:r.photo||'',servings:r.servings||4,ingredients:r.ingredients||[],steps:r.steps||[],visibility:r.visibility||'private',updated_at:new Date().toISOString()}}
 
+/* ---------- данные и вход ---------- */
+async function loadAll(){
+  const [r,f,p]=await Promise.all([
+    sb.from('recipes').select('*'),
+    sb.from('friendships').select('*'),
+    sb.from('profiles').select('id,nickname')
+  ]);
+  if(r.error||f.error||p.error){fail(r.error||f.error||p.error);return;}
+  recipes=r.data||[];friendships=f.data||[];profiles=p.data||[];
+  const mine=profiles.find(x=>x.id===me.id);
+  myNick=mine?mine.nickname:'';
+}
+
+async function boot(){
+  const {data}=await sb.auth.getSession();
+  if(!data.session){me=null;st.view='auth';render();return;}
+  me=data.session.user;
+  const {data:p}=await sb.from('profiles').select('nickname').eq('id',me.id).maybeSingle();
+  if(!p){
+    const nick=me.user_metadata&&me.user_metadata.nickname;
+    const {error}=nick?await sb.from('profiles').insert({id:me.id,nickname:nick}):{error:{message:'Не указан никнейм'}};
+    if(error){
+      alert('Не удалось создать профиль: никнейм уже занят. Зарегистрируйтесь заново с другим никнеймом.');
+      await sb.auth.signOut();me=null;st.view='auth';render();return;
+    }
+  }
+  await loadAll();
+  if(st.view==='auth')st.view='books';
+  render();
+}
+
+function renderAuth(){
+  const reg=st.authMode==='register';
+  $.innerHTML=`<header><h1>Моя кухня</h1></header>
+  <main>
+    <div class="tabs">
+      <button class="${!reg?'on':''}" data-act="authMode" data-v="login">Вход</button>
+      <button class="${reg?'on':''}" data-act="authMode" data-v="register">Регистрация</button>
+    </div>
+    <label>Почта<input id="ae" type="email" autocomplete="email"></label>
+    <label>Пароль (минимум 6 символов)<input id="ap" type="password" autocomplete="${reg?'new-password':'current-password'}"></label>
+    ${reg?`<label>Никнейм (его увидят друзья)<input id="an" maxlength="30"></label>`:''}
+    <button class="primary" data-act="${reg?'doRegister':'doLogin'}">${reg?'Создать аккаунт':'Войти'}</button>
+  </main>`;
+}
+
+async function doLogin(){
+  const email=document.getElementById('ae').value.trim();
+  const password=document.getElementById('ap').value;
+  const {error}=await sb.auth.signInWithPassword({email,password});
+  if(error)return fail(error);
+  await boot();
+}
+
+async function doRegister(){
+  const email=document.getElementById('ae').value.trim();
+  const password=document.getElementById('ap').value;
+  const nickname=document.getElementById('an').value.trim();
+  if(nickname.length<2)return alert('Никнейм: от 2 символов');
+  const {data,error}=await sb.auth.signUp({email,password,options:{data:{nickname}}});
+  if(error)return fail(error);
+  if(!data.session){
+    alert('Аккаунт создан. Подтвердите почту по письму и войдите.');
+    st.authMode='login';renderAuth();return;
+  }
+  await boot();
+}
+
+/* ---------- общий каркас ---------- */
+function shell(head,body,extra){
+  const tab=st.view==='friends'?'friends':st.view==='profile'?'profile':'books';
+  const nb=(v,ic,l)=>`<button class="${tab===v?'on':''}" data-act="nav" data-v="${v}"><span>${ic}</span>${l}</button>`;
+  $.innerHTML=`<header>${head}</header><main>${body}</main>${extra||''}
+    <nav class="tabbar">${nb('books','📖','Книги')}${nb('friends','👥','Друзья')}${nb('profile','👤','Профиль')}</nav>`;
+}
+
+function render(){
+  if(!me)return renderAuth();
+  if(st.view==='form')return renderForm();
+  if(st.view==='detail')return renderDetail();
+  if(st.view==='friends')return renderFriends();
+  if(st.view==='profile')return renderProfile();
+  return renderBooks();
+}
+
+/* ---------- книги ---------- */
 function matches(r){
   const terms=st.q.toLowerCase().split(',').map(t=>t.trim()).filter(Boolean);
   if(st.cat&&r.category!==st.cat)return false;
   if(st.tag&&!(r.tags||[]).includes(st.tag))return false;
-  return terms.every(t=>r.name.toLowerCase().includes(t)||(r.ingredients||[]).some(i=>i.name.toLowerCase().includes(t)));
+  return terms.every(t=>r.name.toLowerCase().includes(t)||(r.ingredients||[]).some(i=>String(i.name).toLowerCase().includes(t)));
 }
-
-function chip(v,label,cur,kind){return `<button class="chip ${v===cur?'on':''}" data-act="${kind}" data-v="${esc(v)}">${esc(label)}</button>`}
 
 function card(r){
   const tags=(r.tags||[]).map(t=>' #'+esc(t)).join('');
@@ -102,47 +197,49 @@ function card(r){
   </div>`;
 }
 
-function renderList(){
-  const cats=CATS.filter(c=>recipes.some(r=>r.category===c));
-  $.innerHTML=`<header>
-      <h1>Моя кухня</h1>
-      <input id="q" placeholder="Блюдо или продукт: курица, рис" value="${esc(st.q)}">
-      <div class="hint">Поиск по продуктам: перечислите их через запятую</div>
-      <div class="chips">${chip('','Все',st.cat,'cat')}${cats.map(c=>chip(c,c,st.cat,'cat')).join('')}</div>
-      <div class="chips">${allTags().map(t=>chip(t,'#'+t,st.tag,'tag')).join('')}</div>
-    </header>
-    <main id="m"></main>
-    <div class="backup">
-      <span class="bl">Резервная копия</span>
-      <div class="bb">
-        <button data-act="export">Сохранить в файл</button>
-        <button data-act="importBtn">Загрузить</button>
-      </div>
-      <input id="imp" type="file" accept=".json,application/json" hidden>
-    </div>
-    <button class="fab" data-act="new">+</button>`;
+function renderBooks(){
+  const o=owner();
+  const friendBook=o!==me.id;
+  const own=recipes.filter(r=>r.owner===o);
+  const cats=CATS.filter(c=>own.some(r=>r.category===c));
+  const tags=[...new Set([...DEF_TAGS,...own.flatMap(r=>r.tags||[])])];
+  const head=`${friendBook?`<button class="ghost" data-act="toFriends">← Друзья</button>`:''}
+    <h1>${friendBook?'Книга: '+esc(nickOf(o)):'Моя книга'}</h1>
+    <input id="q" placeholder="Блюдо или продукт: курица, рис" value="${esc(st.q)}">
+    <div class="hint">Поиск по продуктам: перечислите их через запятую</div>
+    <div class="chips">${chip('','Все',st.cat,'cat')}${cats.map(c=>chip(c,c,st.cat,'cat')).join('')}</div>
+    <div class="chips">${tags.map(t=>chip(t,'#'+t,st.tag,'tag')).join('')}</div>`;
+  shell(head,`<div id="m"></div>`,friendBook?'':`<button class="fab" data-act="new">+</button>`);
   renderMain();
 }
 
 function renderMain(){
-  const list=recipes.filter(matches).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
-  document.getElementById('m').innerHTML=list.length
-    ? list.map(card).join('')
-    : `<div class="empty">${recipes.length?'Ничего не найдено':'Пока пусто. Нажмите «+», чтобы добавить первое блюдо.'}</div>`;
+  const o=owner();
+  const list=recipes.filter(r=>r.owner===o&&matches(r)).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
+  const none=recipes.some(r=>r.owner===o);
+  const msg=o!==me.id
+    ?'У этого человека пока нет блюд, открытых друзьям.'
+    :'Пока пусто. Нажмите «+», чтобы добавить первое блюдо.';
+  const el=document.getElementById('m');
+  if(el)el.innerHTML=list.length?list.map(card).join(''):`<div class="empty">${none?'Ничего не найдено':msg}</div>`;
 }
 
 function renderDetail(){
   const r=recipes.find(x=>x.id===st.id);
-  if(!r){st.screen='list';return renderList();}
-  const base=r.servings||1;
+  if(!r){st.view='books';return render();}
+  const mine=r.owner===me.id;
+  const base=Number(r.servings)||1;
   const s=st.scale??base;
   const k=s/base;
   const tags=(r.tags||[]).map(t=>' #'+esc(t)).join('');
-  $.innerHTML=`<header><button class="ghost" data-act="back">← Назад</button></header>
+  const actions=mine
+    ?`<div class="row"><button data-act="edit">Редактировать</button><button class="danger" data-act="del">Удалить</button></div>`
+    :`<div class="row"><button class="primary-sm" data-act="copy">Скопировать к себе</button></div>`;
+  $.innerHTML=`<header><button class="ghost" data-act="backToBooks">← Назад</button></header>
     <main>
       ${r.photo?`<img class="hero" src="${r.photo}" alt="">`:''}
       <h2>${esc(r.name)}</h2>
-      <div class="cm">${esc(r.category||'')}${tags}</div>
+      <div class="cm">${esc(r.category||'')}${tags}${mine?'':' · книга: '+esc(nickOf(r.owner))}</div>
       <div class="sec">
         <div class="sh">Ингредиенты</div>
         <div class="scaler">Порций:
@@ -157,29 +254,38 @@ function renderDetail(){
         <div class="sh">Приготовление</div>
         <ol class="steps">${(r.steps||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ol>
       </div>
-      <div class="row">
-        <button data-act="edit">Редактировать</button>
-        <button class="danger" data-act="del">Удалить</button>
-      </div>
+      ${actions}
     </main>`;
 }
 
-function openForm(edit){
-  const r=edit?recipes.find(x=>x.id===st.id):null;
-  st.draft=r?JSON.parse(JSON.stringify(r)):{id:uid(),name:'',category:'',tags:[],photo:'',servings:4,ingredients:[{name:'',amount:0,unit:''}],steps:['']};
-  st.screen='form';
+async function copyRecipe(id){
+  const r=recipes.find(x=>x.id===id);
+  if(!r)return;
+  const row=toRow({...r,id:uid(),visibility:'private'});
+  const {error}=await sb.from('recipes').insert(row);
+  if(error)return fail(error);
+  await loadAll();
+  st.scope=null;st.view='books';st.id=null;
+  alert('Блюдо добавлено в вашу книгу');
   render();
 }
 
+/* ---------- форма ---------- */
 function renderForm(){
   const d=st.draft;
-  const tagList=[...new Set([...allTags(),...d.tags])];
+  const tagList=[...new Set([...DEF_TAGS,...recipes.filter(r=>r.owner===me.id).flatMap(r=>r.tags||[]),...d.tags])];
   const editing=recipes.some(x=>x.id===d.id);
   $.innerHTML=`<header><button class="ghost" data-act="cancel">← Отмена</button><h2>${editing?'Редактирование':'Новое блюдо'}</h2></header>
     <main id="f">
       <label>Название<input id="fn" value="${esc(d.name)}"></label>
       <label>Категория
         <select id="fc"><option value="">— выберите —</option>${CATS.map(c=>`<option value="${esc(c)}" ${c===d.category?'selected':''}>${esc(c)}</option>`).join('')}</select>
+      </label>
+      <label>Видимость
+        <select id="fv">
+          <option value="private" ${d.visibility!=='friends'?'selected':''}>Только я</option>
+          <option value="friends" ${d.visibility==='friends'?'selected':''}>Друзьям</option>
+        </select>
       </label>
       <div class="lbl">Теги</div>
       <div class="chips">${tagList.map(t=>`<button class="chip ${d.tags.includes(t)?'on':''}" data-act="ftag" data-v="${esc(t)}">#${esc(t)}</button>`).join('')}</div>
@@ -203,13 +309,13 @@ function renderForm(){
     </main>`;
 }
 
-// Read the form fields back into the draft before re-rendering
 function collect(){
   const f=document.getElementById('f');
   if(!f||!st.draft)return;
   const d=st.draft;
   d.name=document.getElementById('fn').value.trim();
   d.category=document.getElementById('fc').value;
+  d.visibility=document.getElementById('fv').value;
   d.servings=parseFloat(document.getElementById('fs').value.replace(',','.'))||1;
   d.ingredients=[...f.querySelectorAll('.ir')].map(r=>({
     name:r.querySelector('.in-n').value.trim(),
@@ -219,16 +325,15 @@ function collect(){
   d.steps=[...f.querySelectorAll('.st')].map(t=>t.value);
 }
 
-function saveForm(){
+async function saveForm(){
   collect();
   const d=st.draft;
-  if(!d.name){alert('Укажите название блюда');return;}
-  d.ingredients=d.ingredients.filter(i=>i.name);
-  d.steps=d.steps.map(s=>s.trim()).filter(Boolean);
-  const i=recipes.findIndex(x=>x.id===d.id);
-  if(i>=0)recipes[i]=d;else recipes.push(d);
-  save();
-  st.id=d.id;st.screen='detail';st.scale=null;st.draft=null;
+  if(!d.name)return alert('Укажите название блюда');
+  const row=toRow({...d,ingredients:d.ingredients.filter(i=>i.name),steps:d.steps.map(s=>s.trim()).filter(Boolean)});
+  const {error}=await sb.from('recipes').upsert(row);
+  if(error)return fail(error);
+  await loadAll();
+  st.view='detail';st.id=row.id;st.scale=null;st.draft=null;
   render();
 }
 
@@ -248,48 +353,151 @@ function compress(file,cb){
   rd.readAsDataURL(file);
 }
 
-function render(){
-  if(st.screen==='detail')renderDetail();
-  else if(st.screen==='form')renderForm();
-  else renderList();
+/* ---------- друзья ---------- */
+function renderFriends(){
+  const accepted=friendships.filter(f=>f.status==='accepted');
+  const friendIds=accepted.map(f=>f.requester===me.id?f.addressee:f.requester);
+  const incoming=friendships.filter(f=>f.status==='pending'&&f.addressee===me.id);
+  const outgoing=friendships.filter(f=>f.status==='pending'&&f.requester===me.id);
+  const row=(name,buttons)=>`<div class="frow"><span>${esc(name)}</span><div>${buttons}</div></div>`;
+  const body=`
+    <div class="lbl">Найти человека по никнейму</div>
+    <input id="fq" placeholder="Никнейм" value="${esc(st.fq)}">
+    <div id="fr"></div>
+    ${incoming.length?`<div class="sec"><div class="sh">Заявки вам</div>${incoming.map(f=>row(nickOf(f.requester),
+      `<button class="primary-sm" data-act="accept" data-id="${f.requester}">Принять</button><button class="danger" data-act="unfriend" data-id="${f.requester}">×</button>`)).join('')}</div>`:''}
+    ${outgoing.length?`<div class="sec"><div class="sh">Ваши заявки</div>${outgoing.map(f=>row(nickOf(f.addressee),
+      `<button class="danger" data-act="unfriend" data-id="${f.addressee}">Отменить</button>`)).join('')}</div>`:''}
+    <div class="sec"><div class="sh">Друзья</div>
+      ${friendIds.length?friendIds.map(id=>row(nickOf(id),
+        `<button data-act="openFriend" data-id="${id}">Книга</button><button class="danger" data-act="unfriend" data-id="${id}">×</button>`)).join(''):'<div class="hint">Пока никого. Найдите друга по никнейму выше.</div>'}
+    </div>`;
+  shell(`<h1>Друзья</h1>`,body,'');
+  renderFriendResults();
 }
 
+function renderFriendResults(){
+  const el=document.getElementById('fr');
+  if(!el)return;
+  const q=st.fq.trim().toLowerCase();
+  if(!q){el.innerHTML='';return;}
+  const related=new Set(friendships.flatMap(f=>[f.requester,f.addressee]));
+  const found=profiles.filter(p=>p.id!==me.id&&!related.has(p.id)&&p.nickname.toLowerCase().includes(q));
+  el.innerHTML=found.length
+    ?found.map(p=>`<div class="frow"><span>${esc(p.nickname)}</span><div><button class="primary-sm" data-act="addFriend" data-id="${p.id}">Добавить</button></div></div>`).join('')
+    :'<div class="hint">Никого не найдено</div>';
+}
+
+/* ---------- профиль ---------- */
+function renderProfile(){
+  let localCount=0;
+  try{localCount=(JSON.parse(localStorage.getItem(KEY_OLD))||[]).length}catch(e){}
+  const mineCount=recipes.filter(r=>r.owner===me.id).length;
+  shell(`<h1>Профиль</h1>`,`
+    <div class="sec">
+      <div class="sh">${esc(myNick)}</div>
+      <div class="cm">${esc(me.email)} · блюд: ${mineCount}</div>
+    </div>
+    <div class="sec">
+      <div class="sh">Данные</div>
+      <div class="btnrow">
+        <button data-act="export">Сохранить копию в файл</button>
+        <button data-act="importBtn">Загрузить из файла</button>
+      </div>
+      <input id="imp" type="file" accept=".json,application/json" hidden>
+      ${localCount?`<div class="btnrow"><button class="primary-sm" data-act="migrate">Перенести ${localCount} блюд с этого телефона</button></div>`:''}
+    </div>
+    <div class="btnrow"><button class="danger" data-act="logout">Выйти</button></div>`,'');
+}
+
+async function importList(list){
+  const rows=list.map(r=>toRow(r));
+  const {error}=await sb.from('recipes').upsert(rows);
+  if(error)throw error;
+  await loadAll();
+}
+
+function exportBackup(){
+  const mineList=recipes.filter(r=>r.owner===me.id);
+  const blob=new Blob([JSON.stringify({app:'my-kitchen',version:2,recipes:mineList},null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='moya-kuhnya-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a);a.click();a.remove();
+}
+
+/* ---------- обработчики ---------- */
 document.addEventListener('input',e=>{
   if(e.target.id==='q'){st.q=e.target.value;renderMain();}
+  if(e.target.id==='fq'){st.fq=e.target.value;renderFriendResults();}
 });
 
-document.addEventListener('change',e=>{
-  if(e.target.id!=='fp'||!e.target.files[0])return;
-  collect();
-  compress(e.target.files[0],url=>{st.draft.photo=url;renderForm();});
+document.addEventListener('change',async e=>{
+  if(e.target.id==='fp'&&e.target.files[0]){
+    collect();
+    compress(e.target.files[0],url=>{st.draft.photo=url;renderForm();});
+  }
+  if(e.target.id==='imp'){
+    const file=e.target.files[0];
+    e.target.value='';
+    if(!file)return;
+    try{
+      const obj=JSON.parse(await file.text());
+      const list=Array.isArray(obj)?obj:obj.recipes;
+      if(!Array.isArray(list)||!list.every(r=>r&&r.id&&r.name))throw new Error('bad');
+      await importList(list);
+      alert('Загружено блюд: '+list.length);
+      render();
+    }catch(err){alert('Не удалось загрузить: это не похоже на файл копии приложения.');}
+  }
 });
 
-document.addEventListener('click',e=>{
+document.addEventListener('click',async e=>{
   const b=e.target.closest('[data-act]');
   if(!b)return;
   const a=b.dataset.act;
-  if(a==='open'){st.id=b.dataset.id;st.scale=null;st.screen='detail';render();}
-  else if(a==='back'){st.screen='list';st.id=null;render();}
-  else if(a==='new'){openForm(false);}
-  else if(a==='edit'){openForm(true);}
+  if(a==='authMode'){st.authMode=b.dataset.v;renderAuth();}
+  else if(a==='doLogin'){await doLogin();}
+  else if(a==='doRegister'){await doRegister();}
+  else if(a==='nav'){
+    const v=b.dataset.v;
+    if(v==='books'){st.scope=null;}
+    st.view=v;st.id=null;render();
+  }
+  else if(a==='open'){st.id=b.dataset.id;st.scale=null;st.view='detail';render();}
+  else if(a==='backToBooks'){st.view='books';render();}
+  else if(a==='toFriends'){st.view='friends';st.scope=null;render();}
   else if(a==='cat'){st.cat=st.cat===b.dataset.v?'':b.dataset.v;render();}
   else if(a==='tag'){st.tag=st.tag===b.dataset.v?'':b.dataset.v;render();}
+  else if(a==='new'){
+    st.draft={id:uid(),name:'',category:'',tags:[],photo:'',servings:4,visibility:'private',ingredients:[{name:'',amount:0,unit:''}],steps:['']};
+    st.view='form';render();
+  }
+  else if(a==='edit'){
+    const r=recipes.find(x=>x.id===st.id);
+    st.draft=JSON.parse(JSON.stringify(r));
+    st.draft.tags=st.draft.tags||[];
+    st.view='form';render();
+  }
   else if(a==='del'){
     if(confirm('Удалить это блюдо?')){
-      recipes=recipes.filter(x=>x.id!==st.id);save();
-      st.screen='list';st.id=null;render();
+      const {error}=await sb.from('recipes').delete().eq('id',st.id);
+      if(error)return fail(error);
+      await loadAll();
+      st.view='books';st.id=null;render();
     }
   }
+  else if(a==='copy'){await copyRecipe(st.id);}
   else if(a==='scale'){
     const r=recipes.find(x=>x.id===st.id);
-    const base=r.servings||1;
+    const base=Number(r.servings)||1;
     st.scale=Math.max(1,(st.scale??base)+Number(b.dataset.d));
     render();
   }
   else if(a==='resetScale'){st.scale=null;render();}
   else if(a==='cancel'){
-    const editing=recipes.some(x=>x.id===st.draft.id);
-    st.screen=editing?'detail':'list';st.draft=null;render();
+    const editing=st.draft&&recipes.some(x=>x.id===st.draft.id);
+    st.view=editing?'detail':'books';st.draft=null;render();
   }
   else if(a==='ftag'){
     collect();
@@ -307,38 +515,47 @@ document.addEventListener('click',e=>{
   else if(a==='rmIng'){collect();st.draft.ingredients.splice(Number(b.dataset.i),1);renderForm();}
   else if(a==='addStep'){collect();st.draft.steps.push('');renderForm();}
   else if(a==='rmStep'){collect();st.draft.steps.splice(Number(b.dataset.i),1);renderForm();}
-  else if(a==='save'){saveForm();}
-  else if(a==='importBtn'){document.getElementById('imp').click();}
+  else if(a==='save'){await saveForm();}
+  else if(a==='addFriend'){
+    const {error}=await sb.from('friendships').insert({requester:me.id,addressee:b.dataset.id});
+    if(error)return fail(error);
+    await loadAll();st.fq='';render();
+  }
+  else if(a==='accept'){
+    const {error}=await sb.from('friendships').update({status:'accepted'}).eq('requester',b.dataset.id).eq('addressee',me.id);
+    if(error)return fail(error);
+    await loadAll();render();
+  }
+  else if(a==='unfriend'){
+    const id=b.dataset.id;
+    if(!confirm('Удалить из друзей или отменить заявку?'))return;
+    await sb.from('friendships').delete().eq('requester',me.id).eq('addressee',id);
+    await sb.from('friendships').delete().eq('requester',id).eq('addressee',me.id);
+    await loadAll();render();
+  }
+  else if(a==='openFriend'){
+    st.scope=b.dataset.id;st.view='books';st.q='';st.cat='';st.tag='';st.id=null;render();
+  }
   else if(a==='export'){exportBackup();}
-});
-
-async function exportBackup(){
-  const data=JSON.stringify({app:'my-kitchen',version:1,exported:new Date().toISOString(),recipes},null,2);
-  const d=new Date().toISOString().slice(0,10);
-  const dl=window.claude?await window.claude.use('downloads'):null;
-  if(!dl){alert('Сохранение файла здесь недоступно. Откройте страницу в браузере.');return;}
-  try{
-    await dl.save({filename:'moya-kuhnya-'+d+'.json',data});
-  }catch(e){alert('Файл не сохранён.');}
-}
-
-document.addEventListener('change',e=>{
-  if(e.target.id!=='imp'||!e.target.files[0])return;
-  const rd=new FileReader();
-  rd.onload=()=>{
+  else if(a==='importBtn'){document.getElementById('imp').click();}
+  else if(a==='migrate'){
     try{
-      const obj=JSON.parse(rd.result);
-      const list=Array.isArray(obj)?obj:obj.recipes;
-      if(!Array.isArray(list)||!list.every(r=>r&&r.id&&r.name)) throw new Error('bad');
-      if(!confirm('Заменить текущие блюда ('+recipes.length+') на '+list.length+' из копии?'))return;
-      recipes=list;save();st.screen='list';st.id=null;render();
-    }catch(err){alert('Это не похоже на файл копии приложения.');}
-  };
-  rd.readAsText(e.target.files[0]);
-  e.target.value='';
+      const list=JSON.parse(localStorage.getItem(KEY_OLD)||'[]');
+      await importList(list);
+      localStorage.removeItem(KEY_OLD);
+      alert('Блюда перенесены в аккаунт');
+      render();
+    }catch(err){fail(err);}
+  }
+  else if(a==='logout'){
+    await sb.auth.signOut();
+    me=null;recipes=[];friendships=[];profiles=[];
+    st={...st,view:'auth',scope:null,id:null,draft:null};
+    render();
+  }
 });
 
-render();
+boot();
 </script>
 </body>
 </html>
