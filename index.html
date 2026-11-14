@@ -77,10 +77,10 @@ const SUPABASE_KEY='sb_publishable_8lWggefI_2oDIXcUsfL_UQ_zRbxRxi_';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 const KEY_OLD='my-kitchen-v1';
-const CATS=['Завтраки','Супы','Горячее','Гарниры','Закуски','Выпечка','Десерты','Напитки','Соусы'];
+const CATS=['Завтраки','Супы','Горячее','Гарниры', 'Салаты', 'Закуски','Выпечка','Десерты','Напитки','Соусы'];
 const DEF_TAGS=['быстро','без мяса'];
 const UNITS=['','г','кг','мл','л','шт','ст.л.','ч.л.','стакан','по вкусу'];
-const EMO={'Завтраки':'🍳','Супы':'🥣','Горячее':'🍲','Гарниры':'🍚','Закуски':'🥗','Выпечка':'🥐','Десерты':'🍰','Напитки':'🥤','Соусы':'🫙'};
+const EMO={'Завтраки':'🍳','Супы':'🥣','Горячее':'🍲','Гарниры':'🍚','Салаты':'🥬','Закуски':'🥗','Выпечка':'🥐','Десерты':'🍰','Напитки':'🥤','Соусы':'🫙'};
 
 let me=null,myNick='',recipes=[],friendships=[],profiles=[];
 let st={view:'auth',scope:null,id:null,q:'',cat:'',tag:'',fq:'',scale:null,draft:null,authMode:'login'};
