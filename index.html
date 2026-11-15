@@ -346,7 +346,7 @@ async function saveForm(){
 async function uploadPhoto(dataUrl,recipeId){
   const blob=await (await fetch(dataUrl)).blob();
   const path=me.id+'/'+recipeId+'-'+Date.now()+'.jpg';
-  const {error}=await sb.storage.from('photos').upload(path,blob,{contentType:'image/jpeg',upsert:true});
+  const {error}=await sb.storage.from('photos').upload(path,blob,{contentType:'image/jpeg',upsert:false});
   if(error)throw error;
   return sb.storage.from('photos').getPublicUrl(path).data.publicUrl;
 }
