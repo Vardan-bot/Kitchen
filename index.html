@@ -83,7 +83,7 @@ const UNITS=['','г','кг','мл','л','шт','ст.л.','ч.л.','стакан
 const EMO={'Завтраки':'🍳','Супы':'🥣','Горячее':'🍲','Гарниры':'🍚','Закуски':'🥗','Выпечка':'🥐','Десерты':'🍰','Напитки':'🥤','Соусы':'🫙'};
 
 let me=null,myNick='',recipes=[],friendships=[],profiles=[];
-let st={view:'auth',scope:null,id:null,q:'',cat:'',tag:'',fq:'',scale:null,draft:null,authMode:'login'};
+let st={view:'auth',scope:null,id:null,q:'',cat:'',tag:'',fq:'',scale:null,draft:null,authMode:'login',bookTab:'all'};
 const $=document.getElementById('app');
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -182,6 +182,7 @@ function render(){
 }
 
 /* ---------- книги ---------- */
+function tabOk(r){return st.bookTab!=='own'||!r.source_nick}
 function matches(r){
   const terms=st.q.toLowerCase().split(',').map(t=>t.trim()).filter(Boolean);
   if(st.cat&&r.category!==st.cat)return false;
@@ -193,18 +194,19 @@ function card(r){
   const tags=(r.tags||[]).map(t=>' #'+esc(t)).join('');
   return `<div class="card" data-act="open" data-id="${esc(r.id)}">
     ${r.photo?`<img src="${r.photo}" alt="">`:`<div class="ph">${emo(r.category)}</div>`}
-    <div><div class="cn">${esc(r.name)}</div><div class="cm">${esc(r.category||'')}${tags}</div></div>
+    <div><div class="cn">${esc(r.name)}</div><div class="cm">${esc(r.category||'')}${tags}${r.source_nick?' · из книги '+esc(r.source_nick):''}</div></div>
   </div>`;
 }
 
 function renderBooks(){
   const o=owner();
   const friendBook=o!==me.id;
-  const own=recipes.filter(r=>r.owner===o);
+  const own=recipes.filter(r=>r.owner===o&&tabOk(r));
   const cats=CATS.filter(c=>own.some(r=>r.category===c));
   const tags=[...new Set([...DEF_TAGS,...own.flatMap(r=>r.tags||[])])];
   const head=`${friendBook?`<button class="ghost" data-act="toFriends">← Друзья</button>`:''}
     <h1>${friendBook?'Книга: '+esc(nickOf(o)):'Моя книга'}</h1>
+    <div class="tabs"><button class="${st.bookTab==='own'?'on':''}" data-act="bookTab" data-v="own">Собственные</button><button class="${st.bookTab!=='own'?'on':''}" data-act="bookTab" data-v="all">Вся коллекция</button></div>
     <input id="q" placeholder="Блюдо или продукт: курица, рис" value="${esc(st.q)}">
     <div class="hint">Поиск по продуктам: перечислите их через запятую</div>
     <div class="chips">${chip('','Все',st.cat,'cat')}${cats.map(c=>chip(c,c,st.cat,'cat')).join('')}</div>
@@ -215,7 +217,7 @@ function renderBooks(){
 
 function renderMain(){
   const o=owner();
-  const list=recipes.filter(r=>r.owner===o&&matches(r)).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
+  const list=recipes.filter(r=>r.owner===o&&tabOk(r)&&matches(r)).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
   const none=recipes.some(r=>r.owner===o);
   const msg=o!==me.id
     ?'У этого человека пока нет блюд, открытых друзьям.'
@@ -535,8 +537,9 @@ document.addEventListener('click',async e=>{
     await loadAll();render();
   }
   else if(a==='openFriend'){
-    st.scope=b.dataset.id;st.view='books';st.q='';st.cat='';st.tag='';st.id=null;render();
+    st.scope=b.dataset.id;st.view='books';st.q='';st.cat='';st.tag='';st.id=null;st.bookTab='all';render();
   }
+  else if(a==='bookTab'){st.bookTab=b.dataset.v;render();}
   else if(a==='export'){exportBackup();}
   else if(a==='importBtn'){document.getElementById('imp').click();}
   else if(a==='migrate'){
