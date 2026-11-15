@@ -66,6 +66,16 @@ label input,label select{margin-top:5px;color:var(--ink);font-size:16px}
 .tabbar button{flex:1;background:none;color:var(--muted);font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:0}
 .tabbar button span{font-size:20px}
 .tabbar button.on{color:var(--accent);font-weight:600}
+.fcard{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-bottom:14px}
+.fhead{display:flex;gap:10px;align-items:center;padding:12px 14px}
+.fname{font-weight:600}
+.fphoto{width:100%;height:220px;object-fit:cover;display:block}
+.ph2{background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:56px;height:160px}
+.fbody{padding:12px 14px}
+.factions{display:flex;gap:16px;margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.factions button{background:none;padding:4px 0;color:var(--muted);font-size:15px}
+.factions button.liked{color:#c0392b}
+.cmt{padding:8px 0;border-bottom:1px dashed var(--line)}
 </style>
 </head>
 <body>
@@ -82,7 +92,7 @@ const DEF_TAGS=['быстро','без мяса'];
 const UNITS=['','г','кг','мл','л','шт','ст.л.','ч.л.','стакан','по вкусу'];
 const EMO={'Завтраки':'🍳','Супы':'🥣','Горячее':'🍲','Гарниры':'🍚','Закуски':'🥗','Выпечка':'🥐','Десерты':'🍰','Напитки':'🥤','Соусы':'🫙'};
 
-let me=null,myNick='',recipes=[],friendships=[],profiles=[];
+let me=null,myNick='',recipes=[],friendships=[],profiles=[],likes=[],comments=[];
 let st={view:'auth',scope:null,id:null,q:'',cat:'',tag:'',fq:'',scale:null,draft:null,authMode:'login',bookTab:'all'};
 const $=document.getElementById('app');
 
@@ -98,13 +108,16 @@ function toRow(r){return{id:r.id,owner:me.id,name:r.name,category:r.category||''
 
 /* ---------- данные и вход ---------- */
 async function loadAll(){
-  const [r,f,p]=await Promise.all([
+  const [r,f,p,l,c]=await Promise.all([
     sb.from('recipes').select('*'),
     sb.from('friendships').select('*'),
-    sb.from('profiles').select('id,nickname')
+    sb.from('profiles').select('id,nickname,avatar_url'),
+    sb.from('likes').select('recipe_id,user_id'),
+    sb.from('comments').select('id,recipe_id,author,body,created_at')
   ]);
-  if(r.error||f.error||p.error){fail(r.error||f.error||p.error);return;}
-  recipes=r.data||[];friendships=f.data||[];profiles=p.data||[];
+  const bad=[r,f,p,l,c].find(x=>x.error);
+  if(bad){fail(bad.error);return;}
+  recipes=r.data||[];friendships=f.data||[];profiles=p.data||[];likes=l.data||[];comments=c.data||[];
   const mine=profiles.find(x=>x.id===me.id);
   myNick=mine?mine.nickname:'';
 }
@@ -166,10 +179,10 @@ async function doRegister(){
 
 /* ---------- общий каркас ---------- */
 function shell(head,body,extra){
-  const tab=st.view==='friends'?'friends':st.view==='profile'?'profile':'books';
+  const tab=st.view==='friends'?'friends':st.view==='profile'?'profile':st.view==='feed'?'feed':'books';
   const nb=(v,ic,l)=>`<button class="${tab===v?'on':''}" data-act="nav" data-v="${v}"><span>${ic}</span>${l}</button>`;
   $.innerHTML=`<header>${head}</header><main>${body}</main>${extra||''}
-    <nav class="tabbar">${nb('books','📖','Книги')}${nb('friends','👥','Друзья')}${nb('profile','👤','Профиль')}</nav>`;
+    <nav class="tabbar">${nb('books','📖','Книги')}${nb('feed','📰','Лента')}${nb('friends','👥','Друзья')}${nb('profile','👤','Профиль')}</nav>`;
 }
 
 function render(){
@@ -178,6 +191,7 @@ function render(){
   if(st.view==='detail')return renderDetail();
   if(st.view==='friends')return renderFriends();
   if(st.view==='profile')return renderProfile();
+  if(st.view==='feed')return renderFeed();
   return renderBooks();
 }
 
@@ -257,6 +271,7 @@ function renderDetail(){
         <div class="sh">Приготовление</div>
         <ol class="steps">${(r.steps||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ol>
       </div>
+      ${socialBlock(r)}
       ${actions}
     </main>`;
 }
@@ -271,6 +286,67 @@ async function copyRecipe(id){
   st.scope=null;st.view='books';st.id=null;
   alert('Блюдо добавлено в вашу книгу');
   render();
+}
+
+function avatarHtml(id,size){
+  const p=profiles.find(x=>x.id===id);
+  if(p&&p.avatar_url)return `<img src="${esc(p.avatar_url)}" alt="" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex:none">`;
+  const initials=esc((nickOf(id)||'?').slice(0,2).toUpperCase());
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:600;flex:none;font-size:${Math.round(size*0.38)}px">${initials}</div>`;
+}
+
+async function toggleLike(id){
+  const liked=likes.some(l=>l.recipe_id===id&&l.user_id===me.id);
+  const {error}=liked
+    ?await sb.from('likes').delete().eq('recipe_id',id).eq('user_id',me.id)
+    :await sb.from('likes').insert({recipe_id:id,user_id:me.id});
+  if(error)return fail(error);
+  await loadAll();render();
+}
+
+function renderFeed(){
+  const list=recipes.filter(r=>r.owner!==me.id)
+    .sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')))
+    .slice(0,30);
+  const body=list.length
+    ?list.map(feedCard).join('')
+    :'<div class="empty">Пока нет блюд от друзей. Добавьте друзей во вкладке «Друзья».</div>';
+  shell('<h1>Лента</h1>',body,'');
+}
+
+function feedCard(r){
+  const liked=likes.some(l=>l.recipe_id===r.id&&l.user_id===me.id);
+  const lc=likes.filter(l=>l.recipe_id===r.id).length;
+  const cc=comments.filter(c=>c.recipe_id===r.id).length;
+  return `<div class="fcard">
+    <div class="fhead">${avatarHtml(r.owner,36)}<div><div class="fname">${esc(nickOf(r.owner))}</div><div class="cm">${esc(r.category||'')}</div></div></div>
+    ${r.photo?`<img class="fphoto" src="${r.photo}" loading="lazy" alt="">`:`<div class="fphoto ph2">${emo(r.category)}</div>`}
+    <div class="fbody">
+      <div class="cn" data-act="open" data-id="${esc(r.id)}">${esc(r.name)}</div>
+      <div class="factions">
+        <button class="${liked?'liked':''}" data-act="like" data-id="${esc(r.id)}">♥ ${lc}</button>
+        <button data-act="open" data-id="${esc(r.id)}">💬 ${cc}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function socialBlock(r){
+  const liked=likes.some(l=>l.recipe_id===r.id&&l.user_id===me.id);
+  const lc=likes.filter(l=>l.recipe_id===r.id).length;
+  const cs=comments.filter(c=>c.recipe_id===r.id)
+    .sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
+  const items=cs.map(c=>`<div class="cmt"><b>${esc(nickOf(c.author))}</b> <span class="cm">${esc(new Date(c.created_at).toLocaleDateString('ru'))}</span>
+      <div>${esc(c.body)}${(c.author===me.id||r.owner===me.id)?` <button class="x" data-act="delComment" data-id="${c.id}">×</button>`:''}</div></div>`).join('');
+  return `<div class="sec">
+    <div class="factions" style="border-top:0;margin:0;padding:0">
+      <button class="${liked?'liked':''}" data-act="like" data-id="${esc(r.id)}">♥ ${lc}</button>
+      <button>💬 ${cs.length}</button>
+    </div>
+    <div class="sh" style="margin-top:12px">Комментарии</div>
+    ${items||'<div class="hint">Комментариев пока нет</div>'}
+    <div class="addrow" style="margin-top:10px"><input id="cin" maxlength="500" placeholder="Написать комментарий"><button data-act="sendComment" data-id="${esc(r.id)}">Отправить</button></div>
+  </div>`;
 }
 
 /* ---------- форма ---------- */
@@ -351,12 +427,12 @@ async function uploadPhoto(dataUrl,recipeId){
   return sb.storage.from('photos').getPublicUrl(path).data.publicUrl;
 }
 
-function compress(file,cb){
+function compress(file,cb,max=800){
   const rd=new FileReader();
   rd.onload=()=>{
     const im=new Image();
     im.onload=()=>{
-      const sc=Math.min(1,800/Math.max(im.width,im.height));
+      const sc=Math.min(1,max/Math.max(im.width,im.height));
       const c=document.createElement('canvas');
       c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);
       c.getContext('2d').drawImage(im,0,0,c.width,c.height);
@@ -409,8 +485,12 @@ function renderProfile(){
   const mineCount=recipes.filter(r=>r.owner===me.id).length;
   shell(`<h1>Профиль</h1>`,`
     <div class="sec">
-      <div class="sh">${esc(myNick)}</div>
-      <div class="cm">${esc(me.email)} · блюд: ${mineCount}</div>
+      <div style="display:flex;align-items:center;gap:14px">${avatarHtml(me.id,64)}<div>
+        <div class="sh" style="margin:0">${esc(myNick)}</div>
+        <div class="cm">${esc(me.email)} · блюд: ${mineCount}</div>
+        <button class="ghost" data-act="avatar" style="padding:4px 0">Сменить фото</button>
+      </div></div>
+      <input id="avi" type="file" accept="image/*" hidden>
     </div>
     <div class="sec">
       <div class="sh">Данные</div>
@@ -429,6 +509,17 @@ async function importList(list){
   const rows=list.map(r=>toRow(r));
   const {error}=await sb.from('recipes').upsert(rows);
   if(error)throw error;
+  await loadAll();
+}
+
+async function uploadAvatar(dataUrl){
+  const blob=await (await fetch(dataUrl)).blob();
+  const path=me.id+'/avatar-'+Date.now()+'.jpg';
+  const {error}=await sb.storage.from('avatars').upload(path,blob,{contentType:'image/jpeg',upsert:false});
+  if(error)throw error;
+  const url=sb.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+  const {error:e2}=await sb.from('profiles').update({avatar_url:url}).eq('id',me.id);
+  if(e2)throw e2;
   await loadAll();
 }
 
@@ -451,6 +542,11 @@ document.addEventListener('change',async e=>{
   if(e.target.id==='fp'&&e.target.files[0]){
     collect();
     compress(e.target.files[0],url=>{st.draft.photo=url;renderForm();});
+  }
+  if(e.target.id==='avi'&&e.target.files[0]){
+    compress(e.target.files[0],async url=>{
+      try{await uploadAvatar(url);render();}catch(err){fail(err);}
+    },256);
   }
   if(e.target.id==='imp'){
     const file=e.target.files[0];
@@ -479,8 +575,8 @@ document.addEventListener('click',async e=>{
     if(v==='books'){st.scope=null;}
     st.view=v;st.id=null;render();
   }
-  else if(a==='open'){st.id=b.dataset.id;st.scale=null;st.view='detail';render();}
-  else if(a==='backToBooks'){st.view='books';render();}
+  else if(a==='open'){st.id=b.dataset.id;st.scale=null;st.from=st.view;st.view='detail';render();}
+  else if(a==='backToBooks'){st.view=st.from==='feed'?'feed':'books';render();}
   else if(a==='toFriends'){st.view='friends';st.scope=null;render();}
   else if(a==='cat'){st.cat=st.cat===b.dataset.v?'':b.dataset.v;render();}
   else if(a==='tag'){st.tag=st.tag===b.dataset.v?'':b.dataset.v;render();}
@@ -564,6 +660,21 @@ document.addEventListener('click',async e=>{
     }catch(err){fail(err);}
     render();
   }
+  else if(a==='like'){await toggleLike(b.dataset.id);}
+  else if(a==='sendComment'){
+    const t=(document.getElementById('cin').value||'').trim();
+    if(!t)return;
+    const {error}=await sb.from('comments').insert({recipe_id:b.dataset.id,author:me.id,body:t});
+    if(error)return fail(error);
+    await loadAll();render();
+  }
+  else if(a==='delComment'){
+    if(!confirm('Удалить комментарий?'))return;
+    const {error}=await sb.from('comments').delete().eq('id',b.dataset.id);
+    if(error)return fail(error);
+    await loadAll();render();
+  }
+  else if(a==='avatar'){document.getElementById('avi').click();}
   else if(a==='export'){exportBackup();}
   else if(a==='importBtn'){document.getElementById('imp').click();}
   else if(a==='migrate'){
