@@ -297,10 +297,13 @@ function avatarHtml(id,size){
 
 async function toggleLike(id){
   const liked=likes.some(l=>l.recipe_id===id&&l.user_id===me.id);
+  if(liked)likes=likes.filter(l=>!(l.recipe_id===id&&l.user_id===me.id));
+  else likes.push({recipe_id:id,user_id:me.id});
+  render();
   const {error}=liked
     ?await sb.from('likes').delete().eq('recipe_id',id).eq('user_id',me.id)
     :await sb.from('likes').insert({recipe_id:id,user_id:me.id});
-  if(error)return fail(error);
+  if(error)fail(error);
   await loadAll();render();
 }
 
