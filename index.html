@@ -449,7 +449,10 @@ function renderFriends(){
   const friendIds=accepted.map(f=>f.requester===me.id?f.addressee:f.requester);
   const incoming=friendships.filter(f=>f.status==='pending'&&f.addressee===me.id);
   const outgoing=friendships.filter(f=>f.status==='pending'&&f.requester===me.id);
-  const row=(name,buttons)=>`<div class="frow"><span>${esc(name)}</span><div>${buttons}</div></div>`;
+  const row=(name,buttons)=>{
+    const p=profiles.find(x=>x.nickname===name);
+    return `<div class="frow"><span style="display:flex;align-items:center;gap:10px">${p?avatarHtml(p.id,32):''}${esc(name)}</span><div>${buttons}</div></div>`;
+  };
   const body=`
     <div class="lbl">Найти человека по никнейму</div>
     <input id="fq" placeholder="Никнейм" value="${esc(st.fq)}">
@@ -474,7 +477,7 @@ function renderFriendResults(){
   const related=new Set(friendships.flatMap(f=>[f.requester,f.addressee]));
   const found=profiles.filter(p=>p.id!==me.id&&!related.has(p.id)&&p.nickname.toLowerCase().includes(q));
   el.innerHTML=found.length
-    ?found.map(p=>`<div class="frow"><span>${esc(p.nickname)}</span><div><button class="primary-sm" data-act="addFriend" data-id="${p.id}">Добавить</button></div></div>`).join('')
+    ?found.map(p=>`<div class="frow"><span style="display:flex;align-items:center;gap:10px">${avatarHtml(p.id,32)}${esc(p.nickname)}</span><div><button class="primary-sm" data-act="addFriend" data-id="${p.id}">Добавить</button></div></div>`).join('')
     :'<div class="hint">Никого не найдено</div>';
 }
 
