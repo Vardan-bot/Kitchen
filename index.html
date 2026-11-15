@@ -308,7 +308,7 @@ async function toggleLike(id){
 }
 
 function renderFeed(){
-  const list=recipes.filter(r=>r.owner!==me.id)
+  const list=recipes
     .sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')))
     .slice(0,30);
   const body=list.length
