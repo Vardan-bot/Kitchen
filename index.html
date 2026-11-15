@@ -258,7 +258,7 @@ function renderDetail(){
       ${r.photo?`<img class="hero" src="${r.photo}" loading="lazy" alt="">`:''}
       <h2>${esc(r.name)}</h2>
       <div class="cm">${esc(r.category||'')}${tags}${mine?'':' · книга: '+esc(nickOf(r.owner))}</div>
-      ${r.source_nick?`<div class="cm">Автор рецепта: ${esc(r.source_nick)}</div>`:''}
+      ${r.source_nick?`<div class="cm">Автор рецепта: <button class="ghost" data-act="openAuthor" data-nick="${esc(r.source_nick)}" style="padding:0;font-size:13px;text-decoration:underline">${esc(r.source_nick)}</button></div>`:''}
       <div class="sec">
         <div class="sh">Ингредиенты</div>
         <div class="scaler">Порций:
@@ -677,6 +677,11 @@ document.addEventListener('click',async e=>{
       alert('Фото перенесены в хранилище');
     }catch(err){fail(err);}
     render();
+  }
+  else if(a==='openAuthor'){
+    const p=profiles.find(x=>x.nickname===b.dataset.nick);
+    if(!p)return alert('Не удалось найти автора');
+    st.scope=p.id;st.view='books';st.q='';st.cat='';st.tag='';st.id=null;st.bookTab='all';render();
   }
   else if(a==='like'){await toggleLike(b.dataset.id);}
   else if(a==='sendComment'){
