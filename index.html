@@ -92,7 +92,7 @@ const DEF_TAGS=['быстро','без мяса'];
 const UNITS=['','г','кг','мл','л','шт','ст.л.','ч.л.','стакан','по вкусу'];
 const EMO={'Завтраки':'🍳','Супы':'🥣','Горячее':'🍲','Гарниры':'🍚','Закуски':'🥗','Выпечка':'🥐','Десерты':'🍰','Напитки':'🥤','Соусы':'🫙'};
 
-let me=null,myNick='',recipes=[],friendships=[],profiles=[],likes=[],comments=[];
+let me=null,myNick='',recipes=[],friendships=[],profiles=[],likes=[],comments=[],copyCounts={};
 let st={view:'auth',scope:null,id:null,q:'',cat:'',tag:'',fq:'',scale:null,draft:null,authMode:'login',bookTab:'all'};
 const $=document.getElementById('app');
 
@@ -104,7 +104,7 @@ function fail(e){alert((e&&e.message)||'Что-то пошло не так')}
 function nickOf(id){if(me&&id===me.id)return myNick;const p=profiles.find(x=>x.id===id);return p?p.nickname:'…'}
 function owner(){return st.scope||me.id}
 function chip(v,label,cur,kind){return `<button class="chip ${v===cur?'on':''}" data-act="${kind}" data-v="${esc(v)}">${esc(label)}</button>`}
-function toRow(r){return{id:r.id,owner:me.id,name:r.name,category:r.category||'',tags:r.tags||[],photo:r.photo||'',servings:r.servings||4,ingredients:r.ingredients||[],steps:r.steps||[],visibility:r.visibility||'private',source_nick:r.source_nick||null,updated_at:new Date().toISOString()}}
+function toRow(r){return{id:r.id,owner:me.id,name:r.name,category:r.category||'',tags:r.tags||[],photo:r.photo||'',servings:r.servings||4,ingredients:r.ingredients||[],steps:r.steps||[],visibility:r.visibility||'private',source_nick:r.source_nick||null,origin_id:r.origin_id||null,updated_at:new Date().toISOString()}}
 
 /* ---------- данные и вход ---------- */
 async function loadAll(){
@@ -118,6 +118,8 @@ async function loadAll(){
   const bad=[r,f,p,l,c].find(x=>x.error);
   if(bad){fail(bad.error);return;}
   recipes=r.data||[];friendships=f.data||[];profiles=p.data||[];likes=l.data||[];comments=c.data||[];
+  const cc=await sb.rpc('copy_counts',{ids:recipes.map(x=>x.id)});
+  copyCounts={};(cc.data||[]).forEach(x=>{copyCounts[x.recipe_id]=Number(x.cnt);});
   const mine=profiles.find(x=>x.id===me.id);
   myNick=mine?mine.nickname:'';
 }
@@ -279,9 +281,10 @@ function renderDetail(){
 async function copyRecipe(id){
   const r=recipes.find(x=>x.id===id);
   if(!r)return;
-  const row=toRow({...r,id:uid(),visibility:'private',source_nick:r.source_nick||nickOf(r.owner)});
+  const row=toRow({...r,id:uid(),visibility:'private',source_nick:r.source_nick||nickOf(r.owner),origin_id:r.origin_id||r.id});
   const {error}=await sb.from('recipes').insert(row);
   if(error)return fail(error);
+  await sb.from('copies').upsert({origin_id:row.origin_id,user_id:me.id},{onConflict:'origin_id,user_id',ignoreDuplicates:true});
   await loadAll();
   st.scope=null;st.view='books';st.id=null;
   alert('Блюдо добавлено в вашу книгу');
@@ -336,6 +339,7 @@ function feedCard(r){
       <div class="factions">
         <button class="${liked?'liked':''}" data-act="like" data-id="${esc(r.id)}">♥ ${lc}</button>
         <button data-act="open" data-id="${esc(r.id)}">💬 ${cc}</button>
+        <button data-act="open" data-id="${esc(r.id)}">📋 ${copyCounts[r.id]||0}</button>
       </div>
     </div>
   </div>`;
@@ -352,6 +356,7 @@ function socialBlock(r){
     <div class="factions" style="border-top:0;margin:0;padding:0">
       <button class="${liked?'liked':''}" data-act="like" data-id="${esc(r.id)}">♥ ${lc}</button>
       <button>💬 ${cs.length}</button>
+      <button>📋 ${copyCounts[r.id]||0}</button>
     </div>
     <div class="sh" style="margin-top:12px">Комментарии</div>
     ${items||'<div class="hint">Комментариев пока нет</div>'}
