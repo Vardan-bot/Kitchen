@@ -77,10 +77,10 @@ const SUPABASE_KEY='sb_publishable_8lWggefI_2oDIXcUsfL_UQ_zRbxRxi_';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 const KEY_OLD='my-kitchen-v1';
-const CATS=['Завтраки','Супы','Горячее','Гарниры', 'Салаты', 'Закуски','Выпечка','Десерты','Напитки','Соусы'];
+const CATS=['Завтраки','Супы','Горячее','Гарниры','Закуски','Выпечка','Десерты','Напитки','Соусы'];
 const DEF_TAGS=['быстро','без мяса'];
 const UNITS=['','г','кг','мл','л','шт','ст.л.','ч.л.','стакан','по вкусу'];
-const EMO={'Завтраки':'🍳','Супы':'🥣','Горячее':'🍲','Гарниры':'🍚','Салаты':'🥬','Закуски':'🥗','Выпечка':'🥐','Десерты':'🍰','Напитки':'🥤','Соусы':'🫙'};
+const EMO={'Завтраки':'🍳','Супы':'🥣','Горячее':'🍲','Гарниры':'🍚','Закуски':'🥗','Выпечка':'🥐','Десерты':'🍰','Напитки':'🥤','Соусы':'🫙'};
 
 let me=null,myNick='',recipes=[],friendships=[],profiles=[];
 let st={view:'auth',scope:null,id:null,q:'',cat:'',tag:'',fq:'',scale:null,draft:null,authMode:'login'};
@@ -94,7 +94,7 @@ function fail(e){alert((e&&e.message)||'Что-то пошло не так')}
 function nickOf(id){if(me&&id===me.id)return myNick;const p=profiles.find(x=>x.id===id);return p?p.nickname:'…'}
 function owner(){return st.scope||me.id}
 function chip(v,label,cur,kind){return `<button class="chip ${v===cur?'on':''}" data-act="${kind}" data-v="${esc(v)}">${esc(label)}</button>`}
-function toRow(r){return{id:r.id,owner:me.id,name:r.name,category:r.category||'',tags:r.tags||[],photo:r.photo||'',servings:r.servings||4,ingredients:r.ingredients||[],steps:r.steps||[],visibility:r.visibility||'private',updated_at:new Date().toISOString()}}
+function toRow(r){return{id:r.id,owner:me.id,name:r.name,category:r.category||'',tags:r.tags||[],photo:r.photo||'',servings:r.servings||4,ingredients:r.ingredients||[],steps:r.steps||[],visibility:r.visibility||'private',source_nick:r.source_nick||null,updated_at:new Date().toISOString()}}
 
 /* ---------- данные и вход ---------- */
 async function loadAll(){
@@ -240,6 +240,7 @@ function renderDetail(){
       ${r.photo?`<img class="hero" src="${r.photo}" alt="">`:''}
       <h2>${esc(r.name)}</h2>
       <div class="cm">${esc(r.category||'')}${tags}${mine?'':' · книга: '+esc(nickOf(r.owner))}</div>
+      ${r.source_nick?`<div class="cm">Автор рецепта: ${esc(r.source_nick)}</div>`:''}
       <div class="sec">
         <div class="sh">Ингредиенты</div>
         <div class="scaler">Порций:
@@ -261,7 +262,7 @@ function renderDetail(){
 async function copyRecipe(id){
   const r=recipes.find(x=>x.id===id);
   if(!r)return;
-  const row=toRow({...r,id:uid(),visibility:'private'});
+  const row=toRow({...r,id:uid(),visibility:'private',source_nick:r.source_nick||nickOf(r.owner)});
   const {error}=await sb.from('recipes').insert(row);
   if(error)return fail(error);
   await loadAll();
