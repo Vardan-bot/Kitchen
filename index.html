@@ -81,10 +81,19 @@ label input,label select{margin-top:5px;color:var(--ink);font-size:16px}
 .factions button{background:none;padding:4px 0;color:var(--muted);font-size:15px}
 .factions button.liked{color:#c0392b}
 .cmt{padding:8px 0;border-bottom:1px dashed var(--line)}
+.splash{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding-bottom:10vh}
+.splash .logo{width:84px;height:84px;border-radius:24px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-family:Georgia,"Times New Roman",serif;font-size:44px;font-weight:bold;animation:splashPulse 1.4s ease-in-out infinite}
+.splash .dots{display:flex;gap:6px}
+.splash .dots span{width:8px;height:8px;border-radius:50%;background:var(--accent);opacity:.3;animation:splashBlink 1.2s ease-in-out infinite}
+.splash .dots span:nth-child(2){animation-delay:.2s}
+.splash .dots span:nth-child(3){animation-delay:.4s}
+@keyframes splashPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+@keyframes splashBlink{0%,100%{opacity:.3}50%{opacity:1}}
+@media (prefers-reduced-motion: reduce){.splash .logo,.splash .dots span{animation:none}}
 </style>
 </head>
 <body>
-<div id="app"><div class="empty">Загрузка…</div></div>
+<div id="app"><div class="splash"><div class="logo">К</div><div class="dots"><span></span><span></span><span></span></div></div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.js"></script>
 <script>
 const SUPABASE_URL='https://kbcblpbwdihqvyqjobzi.supabase.co';
@@ -129,6 +138,38 @@ async function loadAll(){
   myNick=mine?mine.nickname:'';
 }
 
+async function loadCore(){
+  const [r,p]=await Promise.all([
+    sb.from('recipes').select('*'),
+    sb.from('profiles').select('id,nickname,avatar_url')
+  ]);
+  const bad=[r,p].find(x=>x.error);
+  if(bad){fail(bad.error);return false;}
+  recipes=r.data||[];profiles=p.data||[];
+  const mine=profiles.find(x=>x.id===me.id);
+  myNick=mine?mine.nickname:'';
+  return true;
+}
+
+async function loadRest(){
+  const [f,l,c]=await Promise.all([
+    sb.from('friendships').select('*'),
+    sb.from('likes').select('recipe_id,user_id'),
+    sb.from('comments').select('id,recipe_id,author,body,created_at')
+  ]);
+  const bad=[f,l,c].find(x=>x.error);
+  if(bad){fail(bad.error);return false;}
+  friendships=f.data||[];likes=l.data||[];comments=c.data||[];
+  const cc=await sb.rpc('copy_counts',{ids:recipes.map(x=>x.id)});
+  copyCounts={};(cc.data||[]).forEach(x=>{copyCounts[x.recipe_id]=Number(x.cnt);});
+  return true;
+}
+
+function refreshAfterRest(){
+  if(!me||st.view==='form'||st.view==='auth')return;
+  if(st.view==='books')renderMain();else render();
+}
+
 async function boot(){
   const {data}=await sb.auth.getSession();
   if(!data.session){me=null;st.view='auth';render();return;}
@@ -142,9 +183,10 @@ async function boot(){
       await sb.auth.signOut();me=null;st.view='auth';render();return;
     }
   }
-  await loadAll();
+  if(!(await loadCore()))return;
   if(st.view==='auth')st.view='books';
   render();
+  loadRest().then(ok=>{if(ok)refreshAfterRest();});
 }
 
 function renderAuth(){
@@ -311,8 +353,12 @@ async function toggleLike(id){
   const {error}=liked
     ?await sb.from('likes').delete().eq('recipe_id',id).eq('user_id',me.id)
     :await sb.from('likes').insert({recipe_id:id,user_id:me.id});
-  if(error)fail(error);
-  await loadAll();render();
+  if(error){
+    if(liked)likes.push({recipe_id:id,user_id:me.id});
+    else likes=likes.filter(l=>!(l.recipe_id===id&&l.user_id===me.id));
+    fail(error);
+  }
+  render();
 }
 
 function feedTime(r){
@@ -692,15 +738,17 @@ document.addEventListener('click',async e=>{
   else if(a==='sendComment'){
     const t=(document.getElementById('cin').value||'').trim();
     if(!t)return;
-    const {error}=await sb.from('comments').insert({recipe_id:b.dataset.id,author:me.id,body:t});
+    const {data,error}=await sb.from('comments').insert({recipe_id:b.dataset.id,author:me.id,body:t}).select('id,recipe_id,author,body,created_at').single();
     if(error)return fail(error);
-    await loadAll();render();
+    comments.push(data);
+    render();
   }
   else if(a==='delComment'){
     if(!confirm('Удалить комментарий?'))return;
     const {error}=await sb.from('comments').delete().eq('id',b.dataset.id);
     if(error)return fail(error);
-    await loadAll();render();
+    comments=comments.filter(c=>String(c.id)!==String(b.dataset.id));
+    render();
   }
   else if(a==='avatar'){document.getElementById('avi').click();}
   else if(a==='export'){exportBackup();}
