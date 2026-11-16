@@ -325,17 +325,31 @@ function renderDetail(){
     </main>`;
 }
 
+function toast(msg){
+  const t=document.createElement('div');
+  t.textContent=msg;
+  t.style.cssText='position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:9;max-width:90%;text-align:center';
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),2000);
+}
+
 async function copyRecipe(id){
   const r=recipes.find(x=>x.id===id);
   if(!r)return;
   const row=toRow({...r,id:uid(),visibility:'private',source_nick:r.source_nick||nickOf(r.owner),origin_id:r.origin_id||r.id});
-  const {error}=await sb.from('recipes').insert(row);
-  if(error)return fail(error);
-  await sb.from('copies').upsert({origin_id:row.origin_id,user_id:me.id},{onConflict:'origin_id,user_id',ignoreDuplicates:true});
-  await loadAll();
+  recipes.push(row);
   st.scope=null;st.view='books';st.id=null;
-  alert('Блюдо добавлено в вашу книгу');
+  toast('Блюдо добавлено в вашу книгу');
   render();
+  try{
+    const {error}=await sb.from('recipes').insert(row);
+    if(error)throw error;
+    await sb.from('copies').upsert({origin_id:row.origin_id,user_id:me.id},{onConflict:'origin_id,user_id',ignoreDuplicates:true});
+  }catch(err){
+    recipes=recipes.filter(x=>x.id!==row.id);
+    fail(err);render();return;
+  }
+  loadAll().then(()=>refreshAfterRest());
 }
 
 function avatarHtml(id,size){
@@ -475,14 +489,28 @@ async function saveForm(){
   const d=st.draft;
   if(!d.name)return alert('Укажите название блюда');
   const row=toRow({...d,ingredients:d.ingredients.filter(i=>i.name),steps:d.steps.map(s=>s.trim()).filter(Boolean)});
-  if((row.photo||'').startsWith('data:')){
-    try{row.photo=await uploadPhoto(row.photo,row.id);}catch(e){return fail(e);}
-  }
-  const {error}=await sb.from('recipes').upsert(row);
-  if(error)return fail(error);
-  await loadAll();
+  const idx=recipes.findIndex(x=>x.id===row.id);
+  const prev=idx>=0?recipes[idx]:null;
+  if(idx>=0)recipes[idx]=row;else recipes.push(row);
   st.view='detail';st.id=row.id;st.scale=null;st.draft=null;
   render();
+  try{
+    if((row.photo||'').startsWith('data:')){
+      row.photo=await uploadPhoto(row.photo,row.id);
+    }
+    const {error}=await sb.from('recipes').upsert(row);
+    if(error)throw error;
+  }catch(err){
+    const i=recipes.findIndex(x=>x.id===row.id);
+    if(prev&&i>=0)recipes[i]=prev;
+    else if(i>=0)recipes.splice(i,1);
+    st.view=prev?'detail':'books';st.id=prev?row.id:null;
+    fail(err);render();return;
+  }
+  loadAll().then(()=>{
+    if(st.view==='detail'&&st.id===row.id)render();
+    else refreshAfterRest();
+  });
 }
 
 async function uploadPhoto(dataUrl,recipeId){
@@ -661,10 +689,13 @@ document.addEventListener('click',async e=>{
   }
   else if(a==='del'){
     if(confirm('Удалить это блюдо?')){
-      const {error}=await sb.from('recipes').delete().eq('id',st.id);
-      if(error)return fail(error);
-      await loadAll();
+      const id=st.id;
+      const prevList=recipes;
+      recipes=recipes.filter(x=>x.id!==id);
       st.view='books';st.id=null;render();
+      const {error}=await sb.from('recipes').delete().eq('id',id);
+      if(error){recipes=prevList;fail(error);render();return;}
+      loadAll().then(()=>refreshAfterRest());
     }
   }
   else if(a==='copy'){await copyRecipe(st.id);}
