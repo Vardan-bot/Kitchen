@@ -80,7 +80,8 @@ label input,label select{margin-top:5px;color:var(--ink);font-size:16px}
 .factions{display:flex;gap:16px;margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
 .factions button{background:none;padding:4px 0;color:var(--muted);font-size:15px}
 .factions button.liked{color:#c0392b}
-.cmt{padding:8px 0;border-bottom:1px dashed var(--line)}
+.cmt{padding:10px 0;border-bottom:1px dashed var(--line)}
+.cmt:last-child{border-bottom:0}
 .splash{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding-bottom:10vh}
 .splash .logo{width:84px;height:84px;border-radius:24px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-family:Georgia,"Times New Roman",serif;font-size:44px;font-weight:bold;animation:splashPulse 1.4s ease-in-out infinite}
 .splash .dots{display:flex;gap:6px}
@@ -101,10 +102,10 @@ const SUPABASE_KEY='sb_publishable_8lWggefI_2oDIXcUsfL_UQ_zRbxRxi_';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 const KEY_OLD='my-kitchen-v1';
-const CATS=['Завтраки','Супы','Горячее','Гарниры','Закуски','Выпечка','Десерты','Напитки','Соусы'];
+const CATS=['Завтраки','Супы','Горячее','Гарниры','Салаты','Закуски','Выпечка','Десерты','Напитки','Соусы'];
 const DEF_TAGS=['быстро','без мяса'];
 const UNITS=['','г','кг','мл','л','шт','ст.л.','ч.л.','стакан','по вкусу'];
-const EMO={'Завтраки':'🍳','Супы':'🥣','Горячее':'🍲','Гарниры':'🍚','Закуски':'🥗','Выпечка':'🥐','Десерты':'🍰','Напитки':'🥤','Соусы':'🫙'};
+const EMO={'Салаты':'🥬','Завтраки':'🍳','Супы':'🥣','Горячее':'🍲','Гарниры':'🍚','Закуски':'🥗','Выпечка':'🥐','Десерты':'🍰','Напитки':'🥤','Соусы':'🫙'};
 
 let me=null,myNick='',recipes=[],friendships=[],profiles=[],likes=[],comments=[],copyCounts={};
 let st={view:'auth',scope:null,id:null,q:'',cat:'',tag:'',fq:'',scale:null,draft:null,authMode:'login',bookTab:'all'};
@@ -298,7 +299,7 @@ function renderDetail(){
   const k=s/base;
   const tags=(r.tags||[]).map(t=>' #'+esc(t)).join('');
   const actions=mine
-    ?`<div class="row"><button data-act="edit">Редактировать</button><button class="danger" data-act="del">Удалить</button></div>`
+    ?`<div class="row">${r.source_nick?'':'<button data-act="edit">Редактировать</button>'}<button class="danger" data-act="del">Удалить</button></div>`
     :`<div class="row"><button class="primary-sm" data-act="copy">Скопировать к себе</button></div>`;
   $.innerHTML=`<header><button class="ghost" data-act="backToBooks">← Назад</button></header>
     <main>
@@ -415,8 +416,19 @@ function socialBlock(r){
   const lc=likes.filter(l=>l.recipe_id===r.id).length;
   const cs=comments.filter(c=>c.recipe_id===r.id)
     .sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
-  const items=cs.map(c=>`<div class="cmt"><b>${esc(nickOf(c.author))}</b> <span class="cm">${esc(new Date(c.created_at).toLocaleDateString('ru'))}</span>
-      <div>${esc(c.body)}${(c.author===me.id||r.owner===me.id)?` <button class="x" data-act="delComment" data-id="${c.id}">×</button>`:''}</div></div>`).join('');
+  const items=cs.map(c=>`<div class="cmt">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        ${avatarHtml(c.author,28)}
+        <div style="flex:1;min-width:0">
+          <div><b>${esc(nickOf(c.author))}</b> <span class="cm">${esc(new Date(c.created_at).toLocaleDateString('ru'))}</span></div>
+          <div style="margin-top:2px;white-space:pre-wrap">${esc(c.body).replace(/^(@[^,]+,)/,'<span style="color:var(--accent);font-weight:600">$1</span>')}</div>
+        </div>
+        <div style="display:flex;gap:2px;flex:none">
+          <button class="x" data-act="replyTo" data-nick="${esc(nickOf(c.author))}" title="Ответить">↩</button>
+          ${(c.author===me.id||r.owner===me.id)?`<button class="x" data-act="delComment" data-id="${c.id}">×</button>`:''}
+        </div>
+      </div>
+    </div>`).join('');
   return `<div class="sec">
     <div class="factions" style="border-top:0;margin:0;padding:0">
       <button class="${liked?'liked':''}" data-act="like" data-id="${esc(r.id)}">♥ ${lc}</button>
@@ -682,6 +694,10 @@ document.addEventListener('click',async e=>{
     st.view='form';render();
   }
   else if(a==='edit'){
+    if(recipes.find(x=>x.id===st.id)?.source_nick){
+      alert('Скопированное блюдо нельзя редактировать. Его можно удалить и скопировать заново.');
+      return;
+    }
     const r=recipes.find(x=>x.id===st.id);
     st.draft=JSON.parse(JSON.stringify(r));
     st.draft.tags=st.draft.tags||[];
@@ -780,6 +796,10 @@ document.addEventListener('click',async e=>{
     if(error)return fail(error);
     comments=comments.filter(c=>String(c.id)!==String(b.dataset.id));
     render();
+  }
+  else if(a==='replyTo'){
+    const inp=document.getElementById('cin');
+    if(inp){inp.value='@'+b.dataset.nick+', ';inp.focus();}
   }
   else if(a==='avatar'){document.getElementById('avi').click();}
   else if(a==='export'){exportBackup();}
