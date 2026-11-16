@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Моя кухня</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c4553a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Моя кухня">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
 *{box-sizing:border-box}
 :root{--bg:#fbf5ec;--card:#fffdf9;--ink:#3b2a20;--muted:#8c7666;--accent:#c4553a;--soft:#f5e3d6;--sage:#6f8f68;--line:#ebdccd}
@@ -716,6 +721,10 @@ document.addEventListener('click',async e=>{
     render();
   }
 });
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
+}
 
 boot();
 </script>
