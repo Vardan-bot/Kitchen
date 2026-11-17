@@ -337,7 +337,7 @@ function toast(msg){
 async function copyRecipe(id){
   const r=recipes.find(x=>x.id===id);
   if(!r)return;
-  const row=toRow({...r,id:uid(),visibility:'private',source_nick:r.source_nick||nickOf(r.owner),origin_id:r.origin_id||r.id});
+  const row=toRow({...r,id:uid(),visibility:'friends',source_nick:r.source_nick||nickOf(r.owner),origin_id:r.origin_id||r.id});
   recipes.push(row);
   st.scope=null;st.view='books';st.id=null;
   toast('Блюдо добавлено в вашу книгу');
