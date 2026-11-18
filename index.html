@@ -104,7 +104,49 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const KEY_OLD='my-kitchen-v1';
 const CATS=['Завтраки','Супы','Горячее','Гарниры','Салаты','Закуски','Выпечка','Десерты','Напитки','Соусы'];
 const DEF_TAGS=['быстро','без мяса'];
-const UNITS=['','г','кг','мл','л','шт','ст.л.','ч.л.','стакан','по вкусу'];
+const UNITS=['','г','кг','мл','л','шт','ст.л.','ч.л.','стакан','пучок','щепотка','по вкусу'];
+
+function unitLabel(u,n){
+  const forms={'пучок':['пучок','пучка','пучков'],'щепотка':['щепотка','щепотки','щепоток'],'стакан':['стакан','стакана','стаканов']};
+  const f=forms[u];
+  if(!f)return u||'';
+  if(n%1!==0)return f[1];
+  const a=Math.abs(n)%100,b=a%10;
+  if(a>10&&a<20)return f[2];
+  if(b===1)return f[0];
+  if(b>=2&&b<=4)return f[1];
+  return f[2];
+}
+
+const STARTER=[
+{name:'Омлет',category:'Завтраки',tags:['быстро','без мяса'],servings:2,
+ ingredients:[{name:'Яйца',amount:4,unit:'шт'},{name:'Молоко',amount:100,unit:'мл'},{name:'Сливочное масло',amount:1,unit:'ст.л.'},{name:'Соль',amount:1,unit:'щепотка'}],
+ steps:['Взбейте яйца с молоком и солью вилкой или венчиком.','Растопите масло на сковороде на среднем огне.','Влейте смесь, накройте крышкой и готовьте 5–7 минут на небольшом огне, пока омлет не схватится.']},
+{name:'Сырники',category:'Завтраки',tags:['без мяса'],servings:4,
+ ingredients:[{name:'Творог',amount:500,unit:'г'},{name:'Яйцо',amount:1,unit:'шт'},{name:'Мука',amount:4,unit:'ст.л.'},{name:'Сахар',amount:2,unit:'ст.л.'},{name:'Соль',amount:1,unit:'щепотка'},{name:'Растительное масло для жарки',amount:3,unit:'ст.л.'}],
+ steps:['Разомните творог вилкой, добавьте яйцо, сахар, соль и 3 ложки муки, перемешайте.','Сформируйте небольшие лепёшки и обваляйте их в оставшейся муке.','Обжаривайте на разогретом масле по 3–4 минуты с каждой стороны до золотистой корочки.','Подавайте со сметаной или вареньем.']},
+{name:'Борщ',category:'Супы',tags:[],servings:6,
+ ingredients:[{name:'Говядина на кости',amount:500,unit:'г'},{name:'Вода',amount:2.5,unit:'л'},{name:'Свёкла',amount:2,unit:'шт'},{name:'Капуста белокочанная',amount:300,unit:'г'},{name:'Картофель',amount:3,unit:'шт'},{name:'Морковь',amount:1,unit:'шт'},{name:'Лук репчатый',amount:1,unit:'шт'},{name:'Томатная паста',amount:2,unit:'ст.л.'},{name:'Чеснок (зубчики)',amount:2,unit:'шт'},{name:'Лавровый лист',amount:2,unit:'шт'},{name:'Укроп',amount:1,unit:'пучок'},{name:'Соль',amount:0,unit:'по вкусу'}],
+ steps:['Залейте мясо холодной водой, доведите до кипения, снимите пену и варите около 1,5 часов.','Нарежьте картофель кубиками, капусту тонкой соломкой. Свёклу и морковь натрите, лук мелко нарежьте.','Обжарьте лук с морковью 5 минут, добавьте свёклу и томатную пасту, тушите 10 минут.','В бульон положите картофель, через 10 минут капусту. Ещё через 10 минут добавьте зажарку, лавровый лист и соль.','Варите 5 минут, добавьте измельчённые чеснок и укроп, выключите и дайте настояться 15 минут. Подавайте со сметаной.']},
+{name:'Куриный суп с лапшой',category:'Супы',tags:[],servings:4,
+ ingredients:[{name:'Куриные бёдра',amount:500,unit:'г'},{name:'Вода',amount:2,unit:'л'},{name:'Картофель',amount:2,unit:'шт'},{name:'Морковь',amount:1,unit:'шт'},{name:'Лук репчатый',amount:1,unit:'шт'},{name:'Вермишель',amount:80,unit:'г'},{name:'Зелень',amount:1,unit:'пучок'},{name:'Чёрный перец',amount:1,unit:'щепотка'},{name:'Соль',amount:0,unit:'по вкусу'}],
+ steps:['Залейте курицу водой, доведите до кипения, снимите пену и варите 30 минут.','Достаньте курицу, разберите мясо и верните в бульон.','Добавьте нарезанный картофель, а через 10 минут обжаренные лук и морковь.','Всыпьте вермишель и варите 5 минут. Посолите, поперчите, добавьте нарезанную зелень.']},
+{name:'Паста с томатным соусом',category:'Горячее',tags:['быстро','без мяса'],servings:2,
+ ingredients:[{name:'Спагетти',amount:200,unit:'г'},{name:'Томаты в собственном соку',amount:400,unit:'г'},{name:'Чеснок (зубчики)',amount:2,unit:'шт'},{name:'Оливковое масло',amount:2,unit:'ст.л.'},{name:'Базилик',amount:1,unit:'пучок'},{name:'Сахар',amount:1,unit:'щепотка'},{name:'Соль',amount:0,unit:'по вкусу'}],
+ steps:['Отварите спагетти в подсоленной воде до состояния аль денте. Оставьте полстакана воды от варки.','Обжарьте измельчённый чеснок на масле 1 минуту.','Добавьте томаты, разомните вилкой и тушите 10 минут. Посолите и добавьте сахар.','Смешайте пасту с соусом, при необходимости влейте немного воды от варки. Посыпьте рваным базиликом.']},
+{name:'Курица с картошкой в духовке',category:'Горячее',tags:[],servings:4,
+ ingredients:[{name:'Куриные бёдра',amount:800,unit:'г'},{name:'Картофель',amount:800,unit:'г'},{name:'Чеснок (зубчики)',amount:3,unit:'шт'},{name:'Растительное масло',amount:2,unit:'ст.л.'},{name:'Паприка',amount:1,unit:'ч.л.'},{name:'Соль',amount:1,unit:'ч.л.'}],
+ steps:['Разогрейте духовку до 200 градусов.','Нарежьте картофель крупными дольками. Смешайте с маслом, половиной соли и паприкой, выложите на противень.','Натрите курицу солью, паприкой и измельчённым чесноком, положите сверху на картофель.','Запекайте 50–60 минут, один раз перемешав картофель, до румяной корочки.']},
+{name:'Греческий салат',category:'Салаты',tags:['быстро','без мяса'],servings:2,
+ ingredients:[{name:'Помидоры',amount:3,unit:'шт'},{name:'Огурцы',amount:2,unit:'шт'},{name:'Сладкий перец',amount:1,unit:'шт'},{name:'Красный лук',amount:0.5,unit:'шт'},{name:'Маслины',amount:100,unit:'г'},{name:'Сыр фета',amount:150,unit:'г'},{name:'Оливковое масло',amount:3,unit:'ст.л.'},{name:'Орегано',amount:1,unit:'щепотка'},{name:'Соль',amount:0,unit:'по вкусу'}],
+ steps:['Нарежьте помидоры, огурцы и перец крупными кусочками, лук тонкими полукольцами.','Выложите в миску, добавьте маслины.','Сверху положите фету кубиками, полейте маслом, посыпьте орегано и солью. Перемешивайте аккуратно.']},
+{name:'Салат Цезарь с курицей',category:'Салаты',tags:[],servings:2,
+ ingredients:[{name:'Куриное филе',amount:300,unit:'г'},{name:'Салатные листья',amount:1,unit:'пучок'},{name:'Помидоры черри',amount:150,unit:'г'},{name:'Пармезан',amount:50,unit:'г'},{name:'Белый хлеб',amount:100,unit:'г'},{name:'Чеснок (зубчики)',amount:1,unit:'шт'},{name:'Оливковое масло',amount:3,unit:'ст.л.'},{name:'Майонез',amount:3,unit:'ст.л.'},{name:'Горчица',amount:1,unit:'ч.л.'},{name:'Лимонный сок',amount:1,unit:'ст.л.'},{name:'Соль',amount:1,unit:'щепотка'}],
+ steps:['Нарежьте хлеб кубиками, смешайте с половиной масла и чесноком, подсушите в духовке при 180 градусах 10 минут.','Обжарьте посолённое куриное филе по 5–6 минут с каждой стороны, остудите и нарежьте.','Смешайте майонез, горчицу, лимонный сок и оставшееся масло для соуса.','Выложите рваные листья, курицу, половинки черри и сухарики. Полейте соусом, посыпьте тёртым пармезаном.']},
+{name:'Блины',category:'Выпечка',tags:['без мяса'],servings:4,
+ ingredients:[{name:'Молоко',amount:500,unit:'мл'},{name:'Яйца',amount:2,unit:'шт'},{name:'Мука',amount:200,unit:'г'},{name:'Сахар',amount:1,unit:'ст.л.'},{name:'Соль',amount:1,unit:'щепотка'},{name:'Растительное масло',amount:2,unit:'ст.л.'}],
+ steps:['Взбейте яйца с сахаром и солью, влейте половину молока.','Постепенно всыпьте муку, размешивая до отсутствия комков, затем влейте остальное молоко и масло.','Дайте тесту постоять 15 минут.','Выпекайте на разогретой смазанной сковороде по минуте-полторы с каждой стороны.']}
+];
 const EMO={'Салаты':'🥬','Завтраки':'🍳','Супы':'🥣','Горячее':'🍲','Гарниры':'🍚','Закуски':'🥗','Выпечка':'🥐','Десерты':'🍰','Напитки':'🥤','Соусы':'🫙'};
 
 let me=null,myNick='',recipes=[],friendships=[],profiles=[],likes=[],comments=[],copyCounts={};
@@ -187,6 +229,7 @@ async function boot(){
   if(!(await loadCore()))return;
   if(st.view==='auth')st.view='books';
   render();
+  maybeTour();
   loadRest().then(ok=>{if(ok)refreshAfterRest();});
 }
 
@@ -287,7 +330,7 @@ function renderMain(){
     ?'У этого человека пока нет блюд, открытых друзьям.'
     :'Пока пусто. Нажмите «+», чтобы добавить первое блюдо.';
   const el=document.getElementById('m');
-  if(el)el.innerHTML=list.length?list.map(card).join(''):`<div class="empty">${none?'Ничего не найдено':msg}</div>`;
+  if(el)el.innerHTML=list.length?list.map(card).join(''):(!none&&o===me.id?welcomeHtml():`<div class="empty">${none?'Ничего не найдено':msg}</div>`);
 }
 
 function renderDetail(){
@@ -315,7 +358,7 @@ function renderDetail(){
           <button data-act="scale" data-d="1">+</button>
           ${s!==base?`<button class="ghost" data-act="resetScale">сбросить</button>`:''}
         </div>
-        <ul class="ings">${(r.ingredients||[]).map(i=>`<li><span>${esc(i.name)}</span><span>${i.amount?num(i.amount*k)+' ':''}${esc(i.unit||'')}</span></li>`).join('')}</ul>
+        <ul class="ings">${(r.ingredients||[]).map(i=>`<li><span>${esc(i.name)}</span><span>${i.amount?num(i.amount*k)+' ':''}${esc(unitLabel(i.unit,Math.round(i.amount*k*10)/10))}</span></li>`).join('')}</ul>
       </div>
       <div class="sec">
         <div class="sh">Приготовление</div>
@@ -353,11 +396,84 @@ async function copyRecipe(id){
   loadAll().then(()=>refreshAfterRest());
 }
 
-function avatarHtml(id,size){
+function avatarHtml(id,size,link){
+  const inner=avatarBase(id,size);
+  return link?`<span data-act="openBook" data-id="${esc(id)}" style="display:flex;cursor:pointer;flex:none">${inner}</span>`:inner;
+}
+function avatarBase(id,size){
   const p=profiles.find(x=>x.id===id);
   if(p&&p.avatar_url)return `<img src="${esc(p.avatar_url)}" alt="" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex:none">`;
   const initials=esc((nickOf(id)||'?').slice(0,2).toUpperCase());
   return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:600;flex:none;font-size:${Math.round(size*0.38)}px">${initials}</div>`;
+}
+
+function welcomeHtml(){
+  return `<div class="sec" style="text-align:center;margin-top:6px">
+    <div style="font-size:46px">🍽</div>
+    <div class="sh" style="font-size:22px;margin:6px 0">Добро пожаловать!</div>
+    <div class="hint" style="margin-bottom:14px">Здесь будет ваша книга рецептов. Начните с любого шага:</div>
+    <button class="primary" style="margin-top:0" data-act="new">Добавить первое блюдо</button>
+    <div class="btnrow" style="margin-top:10px">
+      <button data-act="starter">Стартовый набор блюд</button>
+      <button data-act="nav" data-v="friends">Найти друзей</button>
+    </div>
+  </div>`;
+}
+
+async function addStarter(){
+  if(st.adding)return;
+  st.adding=true;
+  const rows=STARTER.map((s,n)=>toRow({...s,id:uid()+n,photo:'',visibility:'private'}));
+  recipes.push(...rows);
+  render();
+  toast('Добавлено блюд: '+rows.length);
+  const {error}=await sb.from('recipes').insert(rows);
+  st.adding=false;
+  if(error){
+    const ids=new Set(rows.map(r=>r.id));
+    recipes=recipes.filter(r=>!ids.has(r.id));
+    fail(error);render();return;
+  }
+  loadAll().then(()=>refreshAfterRest());
+}
+
+const TOUR=[
+  {ic:'📖',t:'Ваша книга',d:'Записывайте блюда с ингредиентами и шагами. Ищите по названию или по продуктам, которые есть дома.'},
+  {ic:'👥',t:'Друзья',d:'Найдите друзей по никнейму, смотрите их книги и копируйте понравившиеся рецепты к себе.'},
+  {ic:'📰',t:'Лента',d:'Здесь появляются новые блюда друзей. Ставьте лайки и пишите комментарии.'}
+];
+
+function tourKey(){return 'my-kitchen-tour-'+me.id}
+
+function maybeTour(){
+  let seen=false;
+  try{seen=!!localStorage.getItem(tourKey())}catch(e){}
+  if(seen||recipes.some(r=>r.owner===me.id))return;
+  try{localStorage.setItem(tourKey(),'1')}catch(e){}
+  showTour(0);
+}
+
+function closeTour(){const t=document.getElementById('tour');if(t)t.remove();}
+
+function showTour(step){
+  closeTour();
+  const s=TOUR[step];
+  const last=step===TOUR.length-1;
+  const dots=TOUR.map((_,i)=>`<span style="width:8px;height:8px;border-radius:50%;background:${i===step?'var(--accent)':'var(--line)'}"></span>`).join('');
+  const el=document.createElement('div');
+  el.id='tour';
+  el.style.cssText='position:fixed;inset:0;z-index:20;background:rgba(59,42,32,.55);display:flex;align-items:flex-end;justify-content:center;padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 90px)';
+  el.innerHTML=`<div style="background:var(--card);border-radius:22px;padding:22px;max-width:420px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.25)">
+    <div style="font-size:42px">${s.ic}</div>
+    <div class="sh" style="font-size:22px;margin:6px 0">${s.t}</div>
+    <div>${s.d}</div>
+    <div style="display:flex;gap:6px;margin:16px 0 4px">${dots}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+      <button class="ghost" data-act="tourSkip">Пропустить</button>
+      <button class="primary-sm" data-act="tourNext" data-step="${step}">${last?'Начать':'Дальше'}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
 }
 
 async function toggleLike(id){
@@ -384,7 +500,7 @@ function feedTime(r){
 }
 
 function renderFeed(){
-  const list=recipes.filter(r=>!r.source_nick)
+  const list=recipes.filter(r=>!r.source_nick&&r.visibility==='friends')
     .sort((a,b)=>feedTime(b)-feedTime(a))
     .slice(0,30);
   const body=list.length
@@ -398,7 +514,7 @@ function feedCard(r){
   const lc=likes.filter(l=>l.recipe_id===r.id).length;
   const cc=comments.filter(c=>c.recipe_id===r.id).length;
   return `<div class="fcard">
-    <div class="fhead">${avatarHtml(r.owner,36)}<div><div class="fname">${esc(nickOf(r.owner))}</div><div class="cm">${esc(r.category||'')}</div></div></div>
+    <div class="fhead" data-act="openBook" data-id="${esc(r.owner)}" style="cursor:pointer">${avatarHtml(r.owner,36)}<div><div class="fname">${esc(nickOf(r.owner))}</div><div class="cm">${esc(r.category||'')}</div></div></div>
     ${r.photo?`<img class="fphoto" src="${r.photo}" loading="lazy" alt="">`:`<div class="fphoto ph2">${emo(r.category)}</div>`}
     <div class="fbody">
       <div class="cn" data-act="open" data-id="${esc(r.id)}">${esc(r.name)}</div>
@@ -418,9 +534,9 @@ function socialBlock(r){
     .sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
   const items=cs.map(c=>`<div class="cmt">
       <div style="display:flex;gap:10px;align-items:flex-start">
-        ${avatarHtml(c.author,28)}
+        ${avatarHtml(c.author,28,true)}
         <div style="flex:1;min-width:0">
-          <div><b>${esc(nickOf(c.author))}</b> <span class="cm">${esc(new Date(c.created_at).toLocaleDateString('ru'))}</span></div>
+          <div><b data-act="openBook" data-id="${esc(c.author)}" style="cursor:pointer">${esc(nickOf(c.author))}</b> <span class="cm">${esc(new Date(c.created_at).toLocaleDateString('ru'))}</span></div>
           <div style="margin-top:2px;white-space:pre-wrap">${esc(c.body).replace(/^(@[^,]+,)/,'<span style="color:var(--accent);font-weight:600">$1</span>')}</div>
         </div>
         <div style="display:flex;gap:2px;flex:none">
@@ -557,7 +673,7 @@ function renderFriends(){
   const outgoing=friendships.filter(f=>f.status==='pending'&&f.requester===me.id);
   const row=(name,buttons)=>{
     const p=profiles.find(x=>x.nickname===name);
-    return `<div class="frow"><span style="display:flex;align-items:center;gap:10px">${p?avatarHtml(p.id,32):''}${esc(name)}</span><div>${buttons}</div></div>`;
+    return `<div class="frow"><span style="display:flex;align-items:center;gap:10px">${p?avatarHtml(p.id,32,true):''}${esc(name)}</span><div>${buttons}</div></div>`;
   };
   const body=`
     <div class="lbl">Найти человека по никнейму</div>
@@ -611,7 +727,7 @@ function renderProfile(){
       ${recipes.some(r=>r.owner===me.id&&(r.photo||'').startsWith('data:'))?`<div class="btnrow"><button class="primary-sm" data-act="migratePhotos">Перенести фото в хранилище</button></div>`:''}
       ${localCount?`<div class="btnrow"><button class="primary-sm" data-act="migrate">Перенести ${localCount} блюд с этого телефона</button></div>`:''}
     </div>
-    <div class="btnrow"><button class="danger" data-act="logout">Выйти</button></div>`,'');
+    <div class="btnrow"><button data-act="tourAgain">Показать подсказки</button><button class="danger" data-act="logout">Выйти</button></div>`,'');
 }
 
 async function importList(list){
@@ -801,6 +917,18 @@ document.addEventListener('click',async e=>{
     const inp=document.getElementById('cin');
     if(inp){inp.value='@'+b.dataset.nick+', ';inp.focus();}
   }
+  else if(a==='openBook'){
+    const id=b.dataset.id;
+    st.scope=id===me.id?null:id;
+    st.view='books';st.q='';st.cat='';st.tag='';st.id=null;st.bookTab='all';render();
+  }
+  else if(a==='starter'){await addStarter();}
+  else if(a==='tourNext'){
+    const n=Number(b.dataset.step)+1;
+    if(n>=TOUR.length)closeTour();else showTour(n);
+  }
+  else if(a==='tourSkip'){closeTour();}
+  else if(a==='tourAgain'){showTour(0);}
   else if(a==='avatar'){document.getElementById('avi').click();}
   else if(a==='export'){exportBackup();}
   else if(a==='importBtn'){document.getElementById('imp').click();}
