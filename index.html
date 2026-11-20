@@ -82,6 +82,24 @@ label input,label select{margin-top:5px;color:var(--ink);font-size:16px}
 .factions button.liked{color:#c0392b}
 .cmt{padding:10px 0;border-bottom:1px dashed var(--line)}
 .cmt:last-child{border-bottom:0}
+.tabbar button{position:relative}
+.badge{position:absolute;top:2px;left:calc(50% + 6px);min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:#fff;font-size:11px;font-style:normal;line-height:18px;text-align:center;padding:0 5px}
+.shoprow{cursor:pointer}
+.shoprow.done{color:var(--muted);text-decoration:line-through}
+.cook{min-height:100vh;display:flex;flex-direction:column;max-width:640px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 12px) 18px calc(env(safe-area-inset-bottom,0px) + 18px)}
+.cook-top{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--muted);font-size:15px}
+.cook-top span{flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cook-bar{height:6px;background:var(--soft);border-radius:3px;margin:10px 0 14px;overflow:hidden}
+.cook-bar div{height:100%;background:var(--accent);border-radius:3px;transition:width .25s}
+.cook-step{flex:1;display:flex;align-items:center;font-family:Georgia,"Times New Roman",serif;font-size:28px;line-height:1.4;padding:12px 0}
+.cook-timers{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.cook-timers button{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:12px 18px;font-size:17px}
+.cook-timer,.cook-alarm{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--soft);border-radius:14px;padding:10px 14px;margin-bottom:10px;font-size:17px}
+.cook-alarm{background:var(--accent);color:#fff;animation:splashPulse 1s ease-in-out infinite}
+.cook-nav{display:flex;gap:10px}
+.cook-nav button{flex:1;padding:18px;font-size:19px;border-radius:16px}
+.cook-nav button:first-child{flex:.45}
+.cook-nav button:disabled{opacity:.4}
 .splash{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding-bottom:10vh}
 .splash .logo{width:84px;height:84px;border-radius:24px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-family:Georgia,"Times New Roman",serif;font-size:44px;font-weight:bold;animation:splashPulse 1.4s ease-in-out infinite}
 .splash .dots{display:flex;gap:6px}
@@ -149,7 +167,7 @@ const STARTER=[
 ];
 const EMO={'Салаты':'🥬','Завтраки':'🍳','Супы':'🥣','Горячее':'🍲','Гарниры':'🍚','Закуски':'🥗','Выпечка':'🥐','Десерты':'🍰','Напитки':'🥤','Соусы':'🫙'};
 
-let me=null,myNick='',recipes=[],friendships=[],profiles=[],likes=[],comments=[],copyCounts={};
+let me=null,myNick='',recipes=[],friendships=[],profiles=[],likes=[],comments=[],copyCounts={},notifs=[],shop=null,cookTimer=null,cookTick=null,audioCtx=null,wakeLock=null;
 let st={view:'auth',scope:null,id:null,q:'',cat:'',tag:'',fq:'',scale:null,draft:null,authMode:'login',bookTab:'all'};
 const $=document.getElementById('app');
 
@@ -209,7 +227,7 @@ async function loadRest(){
 }
 
 function refreshAfterRest(){
-  if(!me||st.view==='form'||st.view==='auth')return;
+  if(!me||st.view==='form'||st.view==='auth'||st.view==='cook')return;
   if(st.view==='books')renderMain();else render();
 }
 
@@ -230,6 +248,7 @@ async function boot(){
   if(st.view==='auth')st.view='books';
   render();
   maybeTour();
+  loadNotifs();
   loadRest().then(ok=>{if(ok)refreshAfterRest();});
 }
 
@@ -272,10 +291,10 @@ async function doRegister(){
 
 /* ---------- общий каркас ---------- */
 function shell(head,body,extra){
-  const tab=st.view==='friends'?'friends':st.view==='profile'?'profile':st.view==='feed'?'feed':'books';
-  const nb=(v,ic,l)=>`<button class="${tab===v?'on':''}" data-act="nav" data-v="${v}"><span>${ic}</span>${l}</button>`;
+  const tab=st.view==='friends'?'friends':st.view==='profile'?'profile':st.view==='feed'?'feed':st.view==='shop'?'shop':'books';
+  const nb=(v,ic,l)=>`<button class="${tab===v?'on':''}" data-act="nav" data-v="${v}"><span>${ic}</span>${l}${v==='feed'&&unreadCount()?`<i class="badge">${unreadCount()}</i>`:''}</button>`;
   $.innerHTML=`<header>${head}</header><main>${body}</main>${extra||''}
-    <nav class="tabbar">${nb('books','📖','Книги')}${nb('feed','📰','Лента')}${nb('friends','👥','Друзья')}${nb('profile','👤','Профиль')}</nav>`;
+    <nav class="tabbar">${nb('books','📖','Книги')}${nb('feed','📰','Лента')}${nb('friends','👥','Друзья')}${nb('shop','🛒','Покупки')}${nb('profile','👤','Профиль')}</nav>`;
 }
 
 function render(){
@@ -285,6 +304,8 @@ function render(){
   if(st.view==='friends')return renderFriends();
   if(st.view==='profile')return renderProfile();
   if(st.view==='feed')return renderFeed();
+  if(st.view==='shop')return renderShop();
+  if(st.view==='cook')return renderCook();
   return renderBooks();
 }
 
@@ -350,6 +371,7 @@ function renderDetail(){
       <h2>${esc(r.name)}</h2>
       <div class="cm">${esc(r.category||'')}${tags}${mine?'':' · книга: '+esc(nickOf(r.owner))}</div>
       ${r.source_nick?`<div class="cm">Автор рецепта: <button class="ghost" data-act="openAuthor" data-nick="${esc(r.source_nick)}" style="padding:0;font-size:13px;text-decoration:underline">${esc(r.source_nick)}</button></div>`:''}
+      <div class="row" style="margin-top:12px">${(r.steps||[]).length?'<button class="primary-sm" data-act="cook">🍳 Готовить</button>':''}<button data-act="addShop">🛒 В список покупок</button></div>
       <div class="sec">
         <div class="sh">Ингредиенты</div>
         <div class="scaler">Порций:
@@ -476,6 +498,230 @@ function showTour(step){
   document.body.appendChild(el);
 }
 
+/* ---------- уведомления ---------- */
+function unreadCount(){return notifs.filter(n=>!n.read).length}
+
+function updateBadge(){
+  const btn=document.querySelector('.tabbar [data-v="feed"]');
+  if(!btn)return;
+  const old=btn.querySelector('.badge');
+  if(old)old.remove();
+  const n=unreadCount();
+  if(n>0){const i=document.createElement('i');i.className='badge';i.textContent=n;btn.appendChild(i);}
+}
+
+async function loadNotifs(){
+  if(!me)return;
+  const {data,error}=await sb.from('notifications').select('id,actor,recipe_id,recipe_name,read,created_at').eq('user_id',me.id).order('created_at',{ascending:false}).limit(30);
+  if(error)return;
+  notifs=data||[];
+  updateBadge();
+  if(st.view==='feed')render();
+}
+
+function notifBlock(){
+  const list=notifs.filter(n=>!n.read).slice(0,10);
+  if(!list.length)return '';
+  const rows=list.map(n=>`<div class="frow"><span style="display:flex;align-items:center;gap:10px">${avatarHtml(n.actor,30,true)}<span><b>${esc(nickOf(n.actor))}</b> приготовил(а) ваш рецепт «${esc(n.recipe_name)}»<div class="cm" style="display:block">${esc(new Date(n.created_at).toLocaleDateString('ru'))}</div></span></span></div>`).join('');
+  return `<div class="sec" style="margin-top:0;margin-bottom:14px"><div class="sh">Новое</div>${rows}<div class="btnrow" style="margin-top:10px"><button data-act="notifRead">Понятно</button></div></div>`;
+}
+
+/* ---------- список покупок (хранится на телефоне) ---------- */
+function shopStoreKey(){return 'my-kitchen-shop-'+me.id}
+
+function getShop(){
+  if(shop&&shop.uid===me.id)return shop;
+  let d={items:[],recipes:[]};
+  try{
+    const raw=JSON.parse(localStorage.getItem(shopStoreKey())||'null');
+    if(raw&&Array.isArray(raw.items))d={items:raw.items,recipes:raw.recipes||[]};
+  }catch(e){}
+  shop={uid:me.id,items:d.items,recipes:d.recipes};
+  return shop;
+}
+
+function saveShop(){
+  try{localStorage.setItem(shopStoreKey(),JSON.stringify({items:shop.items,recipes:shop.recipes}))}catch(e){}
+}
+
+function toBase(a,u){
+  if(u==='кг')return [a*1000,'г'];
+  if(u==='л')return [a*1000,'мл'];
+  return [a,u||''];
+}
+
+function shopAddItems(list,recipeId){
+  const sh=getShop();
+  for(const ing of list){
+    const name=String(ing.name||'').trim();
+    if(!name)continue;
+    const [amt0,unit]=toBase(Number(ing.amount)||0,ing.unit);
+    const amt=Math.round(amt0*100)/100;
+    const it=sh.items.find(x=>x.name.toLowerCase()===name.toLowerCase()&&x.unit===unit);
+    if(it){it.amount=Math.round(((it.amount||0)+amt)*100)/100;it.done=false;}
+    else sh.items.push({id:uid(),name,unit,amount:amt,done:false});
+  }
+  if(recipeId&&!sh.recipes.includes(recipeId))sh.recipes.push(recipeId);
+  saveShop();
+}
+
+function shopAmount(it){
+  let a=it.amount,u=it.unit;
+  if(!a)return u==='по вкусу'?'по вкусу':'';
+  if(u==='г'&&a>=1000){a/=1000;u='кг';}
+  else if(u==='мл'&&a>=1000){a/=1000;u='л';}
+  a=Math.round(a*10)/10;
+  return num(a)+(u?' '+unitLabel(u,a):'');
+}
+
+function shopText(){
+  return getShop().items.filter(i=>!i.done).map(i=>'• '+i.name+(shopAmount(i)?' — '+shopAmount(i):'')).join('\n');
+}
+
+function renderShop(){
+  const sh=getShop();
+  const open=sh.items.filter(i=>!i.done);
+  const done=sh.items.filter(i=>i.done);
+  const row=i=>`<div class="frow shoprow ${i.done?'done':''}" data-act="shopToggle" data-id="${esc(i.id)}">
+      <span style="display:flex;align-items:center;gap:10px"><span style="font-size:20px">${i.done?'☑':'☐'}</span>${esc(i.name)}</span>
+      <span style="display:flex;align-items:center;gap:6px"><span class="cm" style="margin:0">${esc(shopAmount(i))}</span><button class="x" data-act="shopDel" data-id="${esc(i.id)}">×</button></span>
+    </div>`;
+  const body=`<div class="addrow"><input id="shopin" placeholder="Добавить продукт" maxlength="60"><button data-act="shopAdd">Добавить</button></div>
+    ${sh.items.length?`<div class="sec">${open.map(row).join('')}${done.length?`<div class="hint" style="margin-top:12px">Куплено</div>${done.map(row).join('')}`:''}</div>
+    <div class="btnrow"><button data-act="shopShare">Поделиться списком</button>${done.length?'<button data-act="shopClearDone">Убрать купленное</button>':''}</div>
+    <div class="btnrow"><button class="danger" data-act="shopClear">Очистить всё</button></div>`
+    :'<div class="empty">Список пуст.<br>Откройте блюдо и нажмите «В список покупок».</div>'}`;
+  shell('<h1>Покупки</h1>',body,'');
+}
+
+/* ---------- режим готовки ---------- */
+function stepTimers(text){
+  const re=/(\d+(?:[.,]\d+)?)(?:\s*[–-]\s*\d+(?:[.,]\d+)?)?\s*(сек(?:унд[а-яё]*|\.)?|мин(?:ут[а-яё]*|\.)?|час(?:а|ов|у)?)(?![а-яё])/giu;
+  const out=[];
+  for(const m of String(text||'').matchAll(re)){
+    const n=parseFloat(m[1].replace(',','.'));
+    const u=m[2].toLowerCase();
+    const min=u.startsWith('сек')?n/60:u.startsWith('мин')?n:n*60;
+    if(min>0&&min<=600&&!out.some(o=>o.min===min))out.push({min,label:m[0].trim()});
+  }
+  return out.slice(0,3);
+}
+
+async function lockScreen(){
+  try{if('wakeLock' in navigator)wakeLock=await navigator.wakeLock.request('screen');}catch(e){}
+}
+function unlockScreen(){
+  try{if(wakeLock){wakeLock.release();wakeLock=null;}}catch(e){}
+}
+
+function beep(){
+  try{navigator.vibrate&&navigator.vibrate([400,200,400,200,400]);}catch(e){}
+  try{
+    if(!audioCtx)return;
+    for(let n=0;n<3;n++){
+      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.type='sine';o.frequency.value=880;g.gain.value=0.25;
+      o.connect(g);g.connect(audioCtx.destination);
+      const t=audioCtx.currentTime+n*0.45;
+      o.start(t);o.stop(t+0.25);
+    }
+  }catch(e){}
+}
+
+function startTimer(min,label){
+  clearInterval(cookTick);
+  cookTimer={end:Date.now()+min*60000,label,fired:false};
+  cookTick=setInterval(tickTimer,1000);
+  timerShell();
+}
+
+function stopTimer(){
+  clearInterval(cookTick);cookTick=null;cookTimer=null;
+  timerShell();
+}
+
+function tickTimer(){
+  if(!cookTimer){clearInterval(cookTick);cookTick=null;return;}
+  if(!cookTimer.fired&&Date.now()>=cookTimer.end){
+    cookTimer.fired=true;
+    clearInterval(cookTick);
+    cookTick=setInterval(()=>{if(cookTimer&&cookTimer.fired)beep();else{clearInterval(cookTick);cookTick=null;}},5000);
+    beep();timerShell();return;
+  }
+  timerText();
+}
+
+function timerShell(){
+  const el=document.getElementById('cooktimer');
+  if(!el)return;
+  if(!cookTimer){el.innerHTML='';return;}
+  if(cookTimer.fired){
+    el.innerHTML=`<div class="cook-alarm"><span>⏰ ${esc(cookTimer.label)}: время вышло!</span><button style="background:#fff;color:var(--accent)" data-act="timerStop">Ок</button></div>`;
+    return;
+  }
+  el.innerHTML=`<div class="cook-timer"><span>⏱ ${esc(cookTimer.label)} · <b id="tleft"></b></span><button class="x" data-act="timerStop" aria-label="Сбросить таймер">×</button></div>`;
+  timerText();
+}
+
+function timerText(){
+  const el=document.getElementById('tleft');
+  if(!el||!cookTimer)return;
+  const left=Math.max(0,Math.ceil((cookTimer.end-Date.now())/1000));
+  const h=Math.floor(left/3600),m=Math.floor((left%3600)/60),sec=left%60;
+  el.textContent=(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(sec).padStart(2,'0');
+}
+
+function renderCook(){
+  const c=st.cook;
+  const r=c&&recipes.find(x=>x.id===c.id);
+  if(!r){exitCook();return;}
+  const steps=r.steps||[];
+  const i=Math.min(c.step,Math.max(0,steps.length-1));
+  const last=i>=steps.length-1;
+  const k=c.k||1;
+  let middle;
+  if(c.showIngr){
+    middle=`<div class="sec" style="flex:1;margin-top:0;overflow:auto"><div class="sh">Ингредиенты</div><ul class="ings">${(r.ingredients||[]).map(x=>`<li><span>${esc(x.name)}</span><span>${x.amount?num(x.amount*k)+' ':''}${esc(unitLabel(x.unit,Math.round(x.amount*k*10)/10))}</span></li>`).join('')}</ul></div>`;
+  }else{
+    const tm=stepTimers(steps[i]).map(t=>`<button data-act="timerStart" data-min="${t.min}" data-label="${esc(t.label)}">⏱ ${esc(t.label)}</button>`).join('');
+    middle=`<div class="cook-step">${esc(steps[i]||'')}</div>${tm?`<div class="cook-timers">${tm}</div>`:''}`;
+  }
+  $.innerHTML=`<div class="cook">
+    <div class="cook-top"><button class="x" data-act="cookExit" aria-label="Выйти">×</button><span>${esc(r.name)} · шаг ${i+1} из ${steps.length}</span><button class="ghost" data-act="cookIngr">${c.showIngr?'К шагам':'Состав'}</button></div>
+    <div class="cook-bar"><div style="width:${Math.round((i+1)/Math.max(1,steps.length)*100)}%"></div></div>
+    <div id="cooktimer"></div>
+    ${middle}
+    <div class="cook-nav"><button data-act="cookPrev" ${i===0?'disabled':''}>←</button>${last?'<button class="primary-sm" data-act="cookDone">Приготовил! 🍽</button>':'<button class="primary-sm" data-act="cookNext">Дальше →</button>'}</div>
+  </div>`;
+  timerShell();
+}
+
+function cookStep(d){
+  const c=st.cook;if(!c)return;
+  const r=recipes.find(x=>x.id===c.id);if(!r)return;
+  const n=(r.steps||[]).length;
+  const next=Math.max(0,Math.min(n-1,c.step+d));
+  if(next===c.step)return;
+  c.step=next;c.showIngr=false;
+  renderCook();
+}
+
+function exitCook(){
+  const id=st.cook&&st.cook.id;
+  clearInterval(cookTick);cookTick=null;cookTimer=null;
+  unlockScreen();
+  st.cook=null;
+  st.view=id?'detail':'books';st.id=id||null;
+  render();
+}
+
+async function cookDone(){
+  const id=st.cook&&st.cook.id;
+  exitCook();
+  toast('Приятного аппетита! 🍽');
+  if(id){try{await sb.rpc('notify_cooked',{p_recipe:id});}catch(e){}}
+}
+
 async function toggleLike(id){
   const liked=likes.some(l=>l.recipe_id===id&&l.user_id===me.id);
   if(liked)likes=likes.filter(l=>!(l.recipe_id===id&&l.user_id===me.id));
@@ -506,7 +752,7 @@ function renderFeed(){
   const body=list.length
     ?list.map(feedCard).join('')
     :'<div class="empty">Пока нет блюд от друзей. Добавьте друзей во вкладке «Друзья».</div>';
-  shell('<h1>Лента</h1>',body,'');
+  shell('<h1>Лента</h1>',notifBlock()+body,'');
 }
 
 function feedCard(r){
@@ -799,6 +1045,7 @@ document.addEventListener('click',async e=>{
     const v=b.dataset.v;
     if(v==='books'){st.scope=null;}
     st.view=v;st.id=null;render();
+    if(v==='feed')loadNotifs();
   }
   else if(a==='open'){st.id=b.dataset.id;st.scale=null;st.from=st.view;st.view='detail';render();}
   else if(a==='backToBooks'){st.view=st.from==='feed'?'feed':'books';render();}
@@ -917,6 +1164,78 @@ document.addEventListener('click',async e=>{
     const inp=document.getElementById('cin');
     if(inp){inp.value='@'+b.dataset.nick+', ';inp.focus();}
   }
+  else if(a==='cook'){
+    const r=recipes.find(x=>x.id===st.id);
+    if(!r||!(r.steps||[]).length)return;
+    const base=Number(r.servings)||1;
+    st.cook={id:r.id,step:0,k:(st.scale??base)/base,showIngr:false};
+    st.view='cook';lockScreen();render();
+  }
+  else if(a==='cookExit'){exitCook();}
+  else if(a==='cookNext'){cookStep(1);}
+  else if(a==='cookPrev'){cookStep(-1);}
+  else if(a==='cookIngr'){st.cook.showIngr=!st.cook.showIngr;renderCook();}
+  else if(a==='cookDone'){await cookDone();}
+  else if(a==='timerStart'){
+    try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.resume)audioCtx.resume();}catch(e){}
+    startTimer(Number(b.dataset.min),b.dataset.label);
+  }
+  else if(a==='timerStop'){stopTimer();}
+  else if(a==='addShop'){
+    const r=recipes.find(x=>x.id===st.id);
+    if(!r)return;
+    const sh=getShop();
+    if(sh.recipes.includes(r.id)&&!confirm('Это блюдо уже есть в списке покупок. Добавить ещё раз?'))return;
+    const base=Number(r.servings)||1;
+    const k=(st.scale??base)/base;
+    shopAddItems((r.ingredients||[]).map(i=>({name:i.name,amount:(Number(i.amount)||0)*k,unit:i.unit})),r.id);
+    toast('Добавлено в список покупок');
+  }
+  else if(a==='shopToggle'){
+    const it=getShop().items.find(x=>x.id===b.dataset.id);
+    if(it){it.done=!it.done;saveShop();render();}
+  }
+  else if(a==='shopDel'){
+    const sh=getShop();
+    sh.items=sh.items.filter(x=>x.id!==b.dataset.id);
+    saveShop();render();
+  }
+  else if(a==='shopAdd'){
+    const inp=document.getElementById('shopin');
+    const v=(inp.value||'').trim();
+    if(!v)return;
+    shopAddItems([{name:v,amount:0,unit:''}],null);
+    render();
+    const n=document.getElementById('shopin');if(n)n.focus();
+  }
+  else if(a==='shopShare'){
+    const text=shopText();
+    if(!text)return toast('Нечего отправлять');
+    try{
+      if(navigator.share)await navigator.share({title:'Список покупок',text});
+      else{await navigator.clipboard.writeText(text);toast('Список скопирован');}
+    }catch(err){
+      if(err&&err.name==='AbortError')return;
+      try{await navigator.clipboard.writeText(text);toast('Список скопирован');}catch(e2){toast('Не удалось поделиться');}
+    }
+  }
+  else if(a==='shopClearDone'){
+    const sh=getShop();
+    sh.items=sh.items.filter(x=>!x.done);
+    saveShop();render();
+  }
+  else if(a==='shopClear'){
+    if(!confirm('Очистить весь список покупок?'))return;
+    const sh=getShop();
+    sh.items=[];sh.recipes=[];
+    saveShop();render();
+  }
+  else if(a==='notifRead'){
+    const ids=notifs.filter(n=>!n.read).map(n=>n.id);
+    notifs.forEach(n=>{n.read=true;});
+    updateBadge();render();
+    if(ids.length)sb.from('notifications').update({read:true}).in('id',ids).then(()=>{});
+  }
   else if(a==='openBook'){
     const id=b.dataset.id;
     st.scope=id===me.id?null:id;
@@ -947,6 +1266,35 @@ document.addEventListener('click',async e=>{
     st={...st,view:'auth',scope:null,id:null,draft:null};
     render();
   }
+});
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.target.id==='shopin'){
+    e.preventDefault();
+    const v=(e.target.value||'').trim();
+    if(!v)return;
+    shopAddItems([{name:v,amount:0,unit:''}],null);
+    render();
+    const n=document.getElementById('shopin');if(n)n.focus();
+  }
+});
+
+let touchX=0,touchY=0;
+document.addEventListener('touchstart',e=>{
+  if(st.view!=='cook')return;
+  touchX=e.touches[0].clientX;touchY=e.touches[0].clientY;
+},{passive:true});
+document.addEventListener('touchend',e=>{
+  if(st.view!=='cook')return;
+  const t=e.changedTouches[0];
+  const dx=t.clientX-touchX,dy=t.clientY-touchY;
+  if(Math.abs(dx)>70&&Math.abs(dy)<60)cookStep(dx<0?1:-1);
+},{passive:true});
+
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible'||!me)return;
+  if(st.view==='cook')lockScreen();
+  loadNotifs();
 });
 
 if('serviceWorker' in navigator){
