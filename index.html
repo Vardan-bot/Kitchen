@@ -295,7 +295,7 @@ async function doRegister(){
 
 /* ---------- общий каркас ---------- */
 function shell(head,body,extra){
-  const tab=st.view==='friends'?'friends':st.view==='profile'?'profile':st.view==='feed'?'feed':st.view==='shop'?'shop':'books';
+  const tab=(st.view==='friends'||st.view==='user')?'friends':st.view==='profile'?'profile':st.view==='feed'?'feed':st.view==='shop'?'shop':'books';
   const nb=(v,ic,l)=>`<button class="${tab===v?'on':''}" data-act="nav" data-v="${v}"><span>${ic}</span>${l}${v==='feed'&&unreadCount()?`<i class="badge">${unreadCount()}</i>`:''}</button>`;
   $.innerHTML=`<header>${head}</header><main>${body}</main>${extra||''}
     <nav class="tabbar">${nb('books','📖','Книги')}${nb('feed','📰','Лента')}${nb('friends','👥','Друзья')}${nb('shop','🛒','Покупки')}${nb('profile','👤','Профиль')}</nav>`;
@@ -309,6 +309,7 @@ function render(){
   if(st.view==='profile')return renderProfile();
   if(st.view==='feed')return renderFeed();
   if(st.view==='shop')return renderShop();
+  if(st.view==='user')return renderUser();
   if(st.view==='cook')return renderCook();
   return renderBooks();
 }
@@ -336,7 +337,7 @@ function renderBooks(){
   const own=recipes.filter(r=>r.owner===o&&tabOk(r));
   const cats=CATS.filter(c=>own.some(r=>r.category===c));
   const tags=[...new Set([...DEF_TAGS,...own.flatMap(r=>r.tags||[])])];
-  const head=`${friendBook?`<button class="ghost" data-act="toFriends">← Друзья</button>`:''}
+  const head=`${friendBook?`<div style="display:flex;justify-content:space-between;align-items:center"><button class="ghost" data-act="toFriends">← Друзья</button><button class="ghost" data-act="openProfile" data-id="${esc(o)}">👤 Профиль и друзья</button></div>`:''}
     <h1>${friendBook?'Книга: '+esc(nickOf(o)):'Моя книга'}</h1>
     <div class="tabs"><button class="${st.bookTab==='own'?'on':''}" data-act="bookTab" data-v="own">Собственные</button><button class="${st.bookTab!=='own'?'on':''}" data-act="bookTab" data-v="all">Вся коллекция</button></div>
     <input id="q" placeholder="Блюдо или продукт: курица, рис" value="${esc(st.q)}">
@@ -759,6 +760,78 @@ async function openPending(){
   }
   st.scope=null;st.id=id;st.scale=null;st.from='books';st.view='detail';
   render();
+}
+
+/* ---------- профиль другого человека ---------- */
+function relation(id){
+  if(id===me.id)return 'me';
+  const f=friendships.find(x=>(x.requester===me.id&&x.addressee===id)||(x.addressee===me.id&&x.requester===id));
+  if(!f)return 'none';
+  if(f.status==='accepted')return 'friend';
+  return f.requester===me.id?'out':'in';
+}
+
+function relButton(id){
+  const rel=relation(id);
+  const note=t=>`<span class="cm" style="margin:0">${t}</span>`;
+  if(rel==='me')return note('Это вы');
+  if(rel==='friend')return note('В друзьях ✓');
+  if(rel==='out')return note('Заявка отправлена');
+  if(rel==='in')return `<button class="primary-sm" data-act="accept" data-id="${esc(id)}">Принять</button>`;
+  return `<button class="primary-sm" data-act="addFriend" data-id="${esc(id)}">Добавить</button>`;
+}
+
+async function openProfile(id,push=true){
+  if(st.view==='user'){
+    if(push&&st.profileId&&st.profileId!==id){st.userStack=st.userStack||[];st.userStack.push(st.profileId);}
+  }else{
+    st.userStack=[];st.userFrom=st.view;
+  }
+  st.view='user';st.profileId=id;st.showFriends=false;st.profFriends=null;
+  render();
+  window.scrollTo(0,0);
+  if(id===me.id){
+    st.profFriends=friendships.filter(f=>f.status==='accepted').map(f=>f.requester===me.id?f.addressee:f.requester);
+    render();return;
+  }
+  if(relation(id)==='friend'){
+    const {data,error}=await sb.rpc('friends_of',{p_user:id});
+    if(st.view!=='user'||st.profileId!==id)return;
+    st.profFriends=error?[]:(data||[]).map(x=>x.friend_id);
+    render();
+  }
+}
+
+function renderUser(){
+  const id=st.profileId;
+  const p=profiles.find(x=>x.id===id);
+  if(!p){st.view='friends';return render();}
+  const rel=relation(id);
+  const canSee=rel==='me'||rel==='friend';
+  const dishes=recipes.filter(r=>r.owner===id).length;
+  const fl=st.profFriends;
+  const friendNum=canSee?(fl?fl.length:'…'):'🔒';
+  const friendWord=canSee&&fl?plural(fl.length,['друг','друга','друзей']):'друзей';
+  const action=rel==='none'?`<button class="primary-sm" data-act="addFriend" data-id="${esc(id)}">Добавить в друзья</button>`
+    :rel==='in'?`<button class="primary-sm" data-act="accept" data-id="${esc(id)}">Принять заявку</button>`
+    :rel==='out'?'<button disabled>Заявка отправлена</button>'
+    :rel==='friend'?'<button disabled>В друзьях ✓</button>':'';
+  let list='';
+  if(canSee&&st.showFriends){
+    const ids=(fl||[]).slice().sort((a,b)=>nickOf(a).localeCompare(nickOf(b),'ru'));
+    list=`<div class="sec"><div class="sh">Друзья · ${ids.length}</div>${ids.length?ids.map(fid=>`<div class="frow" data-act="openProfile" data-id="${esc(fid)}" style="cursor:pointer"><span style="display:flex;align-items:center;gap:10px">${avatarHtml(fid,32)}${esc(nickOf(fid))}</span><div>${relButton(fid)}</div></div>`).join(''):'<div class="hint">Пока никого</div>'}</div>`;
+  }
+  const head='<button class="ghost" data-act="userBack">← Назад</button>';
+  const body=`<div class="sec" style="margin-top:0">
+      <div style="display:flex;align-items:center;gap:14px">${avatarHtml(id,64)}<div><div class="sh" style="margin:0">${esc(p.nickname)}</div></div></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <div class="stat"><b>${dishes}</b><span>${plural(dishes,['блюдо','блюда','блюд'])}</span></div>
+        <button class="stat" data-act="toggleUserFriends"><b>${friendNum}</b><span>${friendWord}</span></button>
+      </div>
+      <div class="btnrow" style="margin-top:14px"><button data-act="openBook" data-id="${esc(id)}">📖 Книга</button>${action}</div>
+      ${canSee?'':'<div class="hint" style="margin-top:10px">Список друзей виден только друзьям этого человека.</div>'}
+    </div>${list}`;
+  shell(head,body,'');
 }
 
 async function toggleLike(id){
@@ -1279,6 +1352,17 @@ document.addEventListener('click',async e=>{
     notifs.forEach(n=>{n.read=true;});
     updateBadge();render();
     if(ids.length)sb.from('notifications').update({read:true}).in('id',ids).then(()=>{});
+  }
+  else if(a==='openProfile'){await openProfile(b.dataset.id);}
+  else if(a==='userBack'){
+    if(st.userStack&&st.userStack.length){await openProfile(st.userStack.pop(),false);}
+    else{st.view=st.userFrom||'friends';render();}
+  }
+  else if(a==='toggleUserFriends'){
+    const rel=relation(st.profileId);
+    if(rel!=='me'&&rel!=='friend'){toast('Список друзей виден только друзьям');return;}
+    st.showFriends=!st.showFriends;render();
+    if(st.showFriends){const el=document.querySelector('.sec + .sec');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}
   }
   else if(a==='shareRecipe'){
     const r=recipes.find(x=>x.id===st.id);
