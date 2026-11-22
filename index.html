@@ -100,6 +100,9 @@ label input,label select{margin-top:5px;color:var(--ink);font-size:16px}
 .cook-nav button{flex:1;padding:18px;font-size:19px;border-radius:16px}
 .cook-nav button:first-child{flex:.45}
 .cook-nav button:disabled{opacity:.4}
+.stat{flex:1;background:var(--soft);border-radius:14px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink)}
+.stat b{font-size:22px;color:var(--accent);font-family:Georgia,serif}
+.stat span{font-size:13px;color:var(--muted)}
 .splash{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding-bottom:10vh}
 .splash .logo{width:84px;height:84px;border-radius:24px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-family:Georgia,"Times New Roman",serif;font-size:44px;font-weight:bold;animation:splashPulse 1.4s ease-in-out infinite}
 .splash .dots{display:flex;gap:6px}
@@ -249,6 +252,7 @@ async function boot(){
   render();
   maybeTour();
   loadNotifs();
+  openPending();
   loadRest().then(ok=>{if(ok)refreshAfterRest();});
 }
 
@@ -371,7 +375,7 @@ function renderDetail(){
       <h2>${esc(r.name)}</h2>
       <div class="cm">${esc(r.category||'')}${tags}${mine?'':' · книга: '+esc(nickOf(r.owner))}</div>
       ${r.source_nick?`<div class="cm">Автор рецепта: <button class="ghost" data-act="openAuthor" data-nick="${esc(r.source_nick)}" style="padding:0;font-size:13px;text-decoration:underline">${esc(r.source_nick)}</button></div>`:''}
-      <div class="row" style="margin-top:12px">${(r.steps||[]).length?'<button class="primary-sm" data-act="cook">🍳 Готовить</button>':''}<button data-act="addShop">🛒 В список покупок</button></div>
+      <div class="row" style="margin-top:12px">${(r.steps||[]).length?'<button class="primary-sm" data-act="cook">🍳 Готовить</button>':''}<button data-act="addShop">🛒 В список покупок</button><button data-act="shareRecipe">📤 Поделиться</button></div>
       <div class="sec">
         <div class="sh">Ингредиенты</div>
         <div class="scaler">Порций:
@@ -722,6 +726,41 @@ async function cookDone(){
   if(id){try{await sb.rpc('notify_cooked',{p_recipe:id});}catch(e){}}
 }
 
+function plural(n,f){
+  const a=Math.abs(n)%100,b=a%10;
+  if(a>10&&a<20)return f[2];
+  if(b===1)return f[0];
+  if(b>=2&&b<=4)return f[1];
+  return f[2];
+}
+
+let pendingRecipe=null;
+
+function readHash(){
+  const m=(location.hash||'').match(/^#r=([^&]+)/);
+  if(!m)return;
+  try{pendingRecipe=decodeURIComponent(m[1]);}catch(e){return;}
+  try{localStorage.setItem('my-kitchen-pending',pendingRecipe);}catch(e){}
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+}
+
+async function openPending(){
+  if(!me)return;
+  let id=pendingRecipe;
+  if(!id){try{id=localStorage.getItem('my-kitchen-pending');}catch(e){}}
+  if(!id)return;
+  pendingRecipe=null;
+  try{localStorage.removeItem('my-kitchen-pending');}catch(e){}
+  let r=recipes.find(x=>x.id===id);
+  if(!r){await loadCore();r=recipes.find(x=>x.id===id);}
+  if(!r){
+    alert('Этот рецепт вам недоступен. Он виден только друзьям автора: добавьте автора в друзья или попросите открыть блюдо.');
+    return;
+  }
+  st.scope=null;st.id=id;st.scale=null;st.from='books';st.view='detail';
+  render();
+}
+
 async function toggleLike(id){
   const liked=likes.some(l=>l.recipe_id===id&&l.user_id===me.id);
   if(liked)likes=likes.filter(l=>!(l.recipe_id===id&&l.user_id===me.id));
@@ -929,7 +968,7 @@ function renderFriends(){
       `<button class="primary-sm" data-act="accept" data-id="${f.requester}">Принять</button><button class="danger" data-act="unfriend" data-id="${f.requester}">×</button>`)).join('')}</div>`:''}
     ${outgoing.length?`<div class="sec"><div class="sh">Ваши заявки</div>${outgoing.map(f=>row(nickOf(f.addressee),
       `<button class="danger" data-act="unfriend" data-id="${f.addressee}">Отменить</button>`)).join('')}</div>`:''}
-    <div class="sec"><div class="sh">Друзья</div>
+    <div class="sec" id="friendsSec" style="scroll-margin-top:80px"><div class="sh">Друзья · ${friendIds.length}</div>
       ${friendIds.length?friendIds.map(id=>row(nickOf(id),
         `<button data-act="openFriend" data-id="${id}">Книга</button><button class="danger" data-act="unfriend" data-id="${id}">×</button>`)).join(''):'<div class="hint">Пока никого. Найдите друга по никнейму выше.</div>'}
     </div>`;
@@ -954,14 +993,19 @@ function renderProfile(){
   let localCount=0;
   try{localCount=(JSON.parse(localStorage.getItem(KEY_OLD))||[]).length}catch(e){}
   const mineCount=recipes.filter(r=>r.owner===me.id).length;
+  const friendCount=friendships.filter(f=>f.status==='accepted').length;
   shell(`<h1>Профиль</h1>`,`
     <div class="sec">
       <div style="display:flex;align-items:center;gap:14px">${avatarHtml(me.id,64)}<div>
         <div class="sh" style="margin:0">${esc(myNick)}</div>
-        <div class="cm">${esc(me.email)} · блюд: ${mineCount}</div>
+        <div class="cm">${esc(me.email)}</div>
         <button class="ghost" data-act="avatar" style="padding:4px 0">Сменить фото</button>
       </div></div>
       <input id="avi" type="file" accept="image/*" hidden>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <div class="stat"><b>${mineCount}</b><span>${plural(mineCount,['блюдо','блюда','блюд'])}</span></div>
+        <button class="stat" data-act="friendsList"><b>${friendCount}</b><span>${plural(friendCount,['друг','друга','друзей'])}</span></button>
+      </div>
     </div>
     <div class="sec">
       <div class="sh">Данные</div>
@@ -1053,7 +1097,7 @@ document.addEventListener('click',async e=>{
   else if(a==='cat'){st.cat=st.cat===b.dataset.v?'':b.dataset.v;render();}
   else if(a==='tag'){st.tag=st.tag===b.dataset.v?'':b.dataset.v;render();}
   else if(a==='new'){
-    st.draft={id:uid(),name:'',category:'',tags:[],photo:'',servings:4,visibility:'private',ingredients:[{name:'',amount:0,unit:''}],steps:['']};
+    st.draft={id:uid(),name:'',category:'',tags:[],photo:'',servings:4,visibility:'friends',ingredients:[{name:'',amount:0,unit:''}],steps:['']};
     st.view='form';render();
   }
   else if(a==='edit'){
@@ -1236,6 +1280,25 @@ document.addEventListener('click',async e=>{
     updateBadge();render();
     if(ids.length)sb.from('notifications').update({read:true}).in('id',ids).then(()=>{});
   }
+  else if(a==='shareRecipe'){
+    const r=recipes.find(x=>x.id===st.id);
+    if(!r)return;
+    if(r.owner===me.id&&r.visibility==='private'&&!confirm('Это блюдо видно только вам, поэтому у получателя ссылка не откроется. Всё равно поделиться?'))return;
+    const url=location.href.split('#')[0]+'#r='+encodeURIComponent(r.id);
+    const data={title:r.name,text:'Рецепт «'+r.name+'» в «Моей кухне»',url};
+    try{
+      if(navigator.share)await navigator.share(data);
+      else{await navigator.clipboard.writeText(url);toast('Ссылка скопирована');}
+    }catch(err){
+      if(err&&err.name==='AbortError')return;
+      try{await navigator.clipboard.writeText(url);toast('Ссылка скопирована');}catch(e2){toast('Не удалось поделиться');}
+    }
+  }
+  else if(a==='friendsList'){
+    st.view='friends';st.id=null;render();
+    const el=document.getElementById('friendsSec');
+    if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+  }
   else if(a==='openBook'){
     const id=b.dataset.id;
     st.scope=id===me.id?null:id;
@@ -1301,6 +1364,8 @@ if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
 }
 
+readHash();
+window.addEventListener('hashchange',()=>{readHash();openPending();});
 boot();
 </script>
 </body>
