@@ -425,7 +425,7 @@ async function copyRecipe(id){
 
 function avatarHtml(id,size,link){
   const inner=avatarBase(id,size);
-  return link?`<span data-act="openBook" data-id="${esc(id)}" style="display:flex;cursor:pointer;flex:none">${inner}</span>`:inner;
+  return link?`<span data-act="openProfile" data-id="${esc(id)}" style="display:flex;cursor:pointer;flex:none">${inner}</span>`:inner;
 }
 function avatarBase(id,size){
   const p=profiles.find(x=>x.id===id);
@@ -782,6 +782,7 @@ function relButton(id){
 }
 
 async function openProfile(id,push=true){
+  if(id===me.id){st.view='profile';st.id=null;st.userStack=[];render();window.scrollTo(0,0);return;}
   if(st.view==='user'){
     if(push&&st.profileId&&st.profileId!==id){st.userStack=st.userStack||[];st.userStack.push(st.profileId);}
   }else{
@@ -872,7 +873,7 @@ function feedCard(r){
   const lc=likes.filter(l=>l.recipe_id===r.id).length;
   const cc=comments.filter(c=>c.recipe_id===r.id).length;
   return `<div class="fcard">
-    <div class="fhead" data-act="openBook" data-id="${esc(r.owner)}" style="cursor:pointer">${avatarHtml(r.owner,36)}<div><div class="fname">${esc(nickOf(r.owner))}</div><div class="cm">${esc(r.category||'')}</div></div></div>
+    <div class="fhead" data-act="openProfile" data-id="${esc(r.owner)}" style="cursor:pointer">${avatarHtml(r.owner,36)}<div><div class="fname">${esc(nickOf(r.owner))}</div><div class="cm">${esc(r.category||'')}</div></div></div>
     ${r.photo?`<img class="fphoto" src="${r.photo}" loading="lazy" alt="">`:`<div class="fphoto ph2">${emo(r.category)}</div>`}
     <div class="fbody">
       <div class="cn" data-act="open" data-id="${esc(r.id)}">${esc(r.name)}</div>
@@ -894,7 +895,7 @@ function socialBlock(r){
       <div style="display:flex;gap:10px;align-items:flex-start">
         ${avatarHtml(c.author,28,true)}
         <div style="flex:1;min-width:0">
-          <div><b data-act="openBook" data-id="${esc(c.author)}" style="cursor:pointer">${esc(nickOf(c.author))}</b> <span class="cm">${esc(new Date(c.created_at).toLocaleDateString('ru'))}</span></div>
+          <div><b data-act="openProfile" data-id="${esc(c.author)}" style="cursor:pointer">${esc(nickOf(c.author))}</b> <span class="cm">${esc(new Date(c.created_at).toLocaleDateString('ru'))}</span></div>
           <div style="margin-top:2px;white-space:pre-wrap">${esc(c.body).replace(/^(@[^,]+,)/,'<span style="color:var(--accent);font-weight:600">$1</span>')}</div>
         </div>
         <div style="display:flex;gap:2px;flex:none">
